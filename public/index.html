@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zyntarix | Autonomous Software Studio</title>
+  <style>
+    :root {
+      --bg: #090d10;
+      --card: #12181f;
+      --accent: #bbf750;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --border: #1e293b;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    .header {
+      width: 100%;
+      max-width: 760px;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 8px 0;
+      color: #fff;
+    }
+    span.glow {
+      color: var(--accent);
+    }
+    p.sub {
+      color: var(--muted);
+      margin: 0;
+      font-size: 14px;
+    }
+    .input-box {
+      width: 100%;
+      max-width: 760px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-sizing: border-box;
+      margin-bottom: 24px;
+    }
+    textarea {
+      width: 100%;
+      height: 90px;
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 15px;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+    }
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
+    button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .terminal-window {
+      width: 100%;
+      max-width: 760px;
+      background: #05080a;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .terminal-header {
+      background: #0b1117;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+      font-family: monospace;
+    }
+    .dots {
+      display: flex;
+      gap: 6px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #334155;
+    }
+    .terminal-body {
+      padding: 16px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      min-height: 240px;
+      max-height: 480px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .log-line {
+      margin-bottom: 12px;
+      border-left: 2px solid var(--border);
+      padding-left: 10px;
+    }
+    .tag {
+      font-weight: bold;
+      color: var(--accent);
+    }
+    .tag.Passed { color: #38bdf8; }
+    .tag.Failed { color: #f87171; }
+    .content-box {
+      margin-top: 6px;
+      background: #0d141c;
+      padding: 10px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>zyntarix<span class="glow">.</span></h1>
+    <p class="sub">Autonomous Software Engine • 99.99% Self-Healing Pipeline</p>
+  </div>
+
+  <div class="input-box">
+    <textarea id="promptInput" placeholder="Describe the application you want to build (e.g. A real-time chat app with Socket.io and dark theme)..."></textarea>
+    <div class="actions">
+      <button id="buildBtn" onclick="triggerBuild()">Launch Build Pipeline</button>
+    </div>
+  </div>
+
+  <div class="terminal-window">
+    <div class="terminal-header">
+      <div class="dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div>Agent Execution Stream</div>
+      <div id="statusBadge">Idle</div>
+    </div>
+    <div class="terminal-body" id="terminalOutput">
+      <div style="color: #475569;">// Awaiting build trigger. Agents are on standby...</div>
+    </div>
+  </div>
+
+  <script>
+    async function triggerBuild() {
+      const prompt = document.getElementById('promptInput').value.trim();
+      if (!prompt) return;
+
+      const btn = document.getElementById('buildBtn');
+      const badge = document.getElementById('statusBadge');
+      const term = document.getElementById('terminalOutput');
+
+      btn.disabled = true;
+      badge.textContent = "Pipeline Running...";
+      badge.style.color = "#bbf750";
+      term.innerHTML = `<div style="color: #94a3b8;">> Initiating multi-agent orchestration for prompt: "${prompt}"</div>`;
+
+      try {
+        const res = await fetch('/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.replace('data: ', ''));
+                renderLog(data);
+              } catch (e) {}
+            }
+          }
+        }
+      } catch (err) {
+        term.innerHTML += `<div style="color: #f87171;">> Network or pipeline connection error: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        badge.textContent = "Finished";
+        badge.style.color = "#38bdf8";
+      }
+    }
+
+    function renderLog(log) {
+      const term = document.getElementById('terminalOutput');
+      const div = document.createElement('div');
+      div.className = 'log-line';
+
+      let detailsHtml = '';
+      if (log.detail) {
+        detailsHtml = `<div class="content-box">${log.detail.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>`;
+      }
+
+      div.innerHTML = `<span style="color:#64748b;">[${log.timestamp || ''}]</span> <span class="tag ${log.status || ''}">[${log.agent || 'Agent'}]</span> <strong>${log.status || ''}</strong>${detailsHtml}`;
+      term.appendChild(div);
+      term.scrollTop = term.scrollHeight;
+    }
+  </script>
+</body>
+</html>
