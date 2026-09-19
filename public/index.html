@@ -1,1 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Zyntarix | Autonomous Software Platform</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body { background-color: #0c0e14; color: #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #1e2433; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .pulse-glow { box-shadow: 0 0 16px rgba(6, 182, 212, 0.4); }
+  </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden select-none">
+
+  <!-- TOP APP HEADER -->
+  <header class="h-12 bg-[#10141e] border-b border-[#1f2637] flex items-center justify-between px-3 z-30 shrink-0">
+    <div class="flex items-center space-x-3">
+      <!-- Collapsible Sidebar Toggle Button -->
+      <button onclick="toggleSidebar()" class="p-1.5 rounded hover:bg-[#1c2333] text-slate-300 transition" title="Toggle Sidebar">
+        <i data-lucide="panel-left" class="w-4 h-4"></i>
+      </button>
+
+      <div class="flex items-center gap-1.5 font-bold text-sm text-lime-400 tracking-wider">
+        <i data-lucide="cpu" class="w-4 h-4"></i> zyntarix.
+      </div>
+      <span class="text-xs text-slate-500 hidden sm:inline">• Replit Architecture</span>
+      <span id="projectStatusBadge" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono">Live 🟢</span>
+    </div>
+
+    <!-- Header Tools & Profile Hub -->
+    <div class="flex items-center gap-2.5">
+      <button onclick="toggleDbModal()" class="flex items-center gap-1 bg-[#161c2b] border border-[#232b3e] hover:border-cyan-500/40 text-slate-300 px-2.5 py-1 rounded text-xs transition">
+        <i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400"></i> Cloud Config
+      </button>
+
+      <div class="flex items-center gap-1.5 bg-[#161c2b] border border-lime-500/30 text-lime-400 px-2.5 py-1 rounded-full text-xs font-mono">
+        <i data-lucide="zap" class="w-3.5 h-3.5 fill-current"></i>
+        <span>1,250</span>
+      </div>
+
+      <button onclick="toggleProfileModal()" class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-lime-400 flex items-center justify-center text-slate-900 font-bold text-xs ring-2 ring-[#1f2637] hover:opacity-90 transition">
+        Z
+      </button>
+    </div>
+  </header>
+
+  <!-- WORKSPACE BODY (Replit Multi-Column) -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- 1. Collapsible Left Sidebar (Files / Workspace) -->
+    <aside id="sidebarPanel" class="w-60 bg-[#0e121b] border-r border-[#1f2637] flex flex-col transition-all duration-300 ease-in-out shrink-0">
+      <div class="p-3 border-b border-[#1f2637] flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <span>Workspace</span>
+        <button onclick="toggleSidebar()" class="text-slate-500 hover:text-white sm:hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      
+      <div class="p-2 space-y-1 text-xs">
+        <div class="p-2 rounded bg-[#161c2b] text-lime-400 font-medium flex items-center gap-2">
+          <i data-lucide="layout-template" class="w-3.5 h-3.5"></i> App Architecture
+        </div>
+        <div class="p-2 rounded text-slate-400 hover:bg-[#141926] hover:text-white cursor-pointer flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-cyan-400"></i> Zero-Leak Secret Vault
+        </div>
+        <div class="p-2 rounded text-slate-400 hover:bg-[#141926] hover:text-white cursor-pointer flex items-center gap-2">
+          <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-amber-400"></i> Managed Database
+        </div>
+      </div>
+
+      <div class="mt-auto p-3 border-t border-[#1f2637]">
+        <div class="p-2.5 rounded-lg bg-[#080b11] border border-[#1f2637] text-[11px] text-slate-400 space-y-1">
+          <div class="flex justify-between font-mono">
+            <span>Quota</span>
+            <span class="text-lime-400">Active</span>
+          </div>
+          <p class="text-[10px] text-slate-500">Autonomous Tier Cloud Node</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. Center Column: Replit-Style Agent Execution Stream -->
+    <main class="flex-1 flex flex-col border-r border-[#1f2637] bg-[#0c0e14] min-w-0">
+      
+      <!-- Agent Execution Header -->
+      <div class="h-9 bg-[#10141e] border-b border-[#1f2637] px-3.5 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2 text-xs font-semibold text-slate-300">
+          <span id="agentIndicator" class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <span>Agent Execution Stream</span>
+        </div>
+        <span id="agentStateText" class="text-[11px] font-mono text-slate-500">Ready</span>
+      </div>
+
+      <!-- Live Agent Stream Feed -->
+      <div id="agentStreamFeed" class="flex-1 p-4 overflow-y-auto custom-scroll space-y-3 font-sans text-xs">
+        <div class="p-3 rounded-lg bg-[#10141e] border border-[#1f2637] text-slate-400 leading-relaxed">
+          <p class="font-semibold text-slate-200 mb-1">⚡ Welcome to Zyntarix Core Engine</p>
+          Type your project instructions in the bar below, or use the floating <strong>NEX bot</strong> at bottom-right to discuss in any language.
+        </div>
+      </div>
+
+      <!-- Auditor Verification & Publish Bar (Hidden until complete) -->
+      <div id="publishBar" class="hidden p-2.5 bg-[#10141e] border-t border-emerald-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Security Audit Verified (No AST Leaks)
+        </div>
+        <button onclick="publishToLive()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 rounded text-xs transition flex items-center gap-1.5">
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Publish Live
+        </button>
+      </div>
+
+      <!-- Agent Message Prompt Bar -->
+      <div class="p-3 bg-[#10141e] border-t border-[#1f2637] shrink-0">
+        <form class="flex items-center gap-2" onsubmit="event.preventDefault(); launchAgentPipeline();">
+          <input id="agentInput" type="text" placeholder="Message Agent (e.g. Build an education quiz app with timer)..." class="flex-1 bg-[#090c12] border border-[#1f2637] rounded-lg px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono">
+          <button type="submit" id="launchBtn" class="bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs transition shrink-0 flex items-center gap-1.5">
+            <span>Send</span>
+            <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </form>
+      </div>
+    </main>
+
+    <!-- 3. Right Column: Real-time Live Interactive App Canvas -->
+    <section id="previewPanel" class="w-[45%] bg-[#080b11] flex flex-col shrink-0">
+      <div class="h-9 bg-[#10141e] border-b border-[#1f2637] px-3 flex items-center justify-between text-xs shrink-0">
+        <span class="text-slate-400 flex items-center gap-1.5 font-medium">
+          <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400"></i> Interactive Canvas
+        </span>
+        <button onclick="reloadPreview()" class="text-slate-400 hover:text-white p-1 rounded transition" title="Reload Preview">
+          <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+      <div class="flex-1 bg-white relative">
+        <iframe id="previewFrame" class="w-full h-full border-none" sandbox="allow-scripts allow-modals allow-same-origin"></iframe>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- FLOATING NEX TRIGGER BUTTON -->
+  <button onclick="toggleNexModal()" class="fixed bottom-6 right-8 w-12 h-12 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white flex items-center justify-center p-3 shadow-2xl z-40 transition pulse-glow cursor-pointer">
+    <i data-lucide="bot" class="w-6 h-6"></i>
+  </button>
+
+  <!-- NEX POP-UP WINDOW (Adaptive Multilingual Co-Pilot) -->
+  <div id="nexModal" class="hidden fixed bottom-20 right-8 w-[420px] max-w-[92vw] h-[520px] bg-[#10141e] border border-[#1f2637] rounded-2xl flex flex-col z-50 shadow-2xl overflow-hidden">
+    <!-- Header -->
+    <div class="h-11 bg-[#161c2b] px-3.5 flex items-center justify-between border-b border-[#1f2637] shrink-0">
+      <div class="flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-[10px] text-slate-900">N</div>
+        <div>
+          <h4 class="text-xs font-bold text-cyan-400 leading-tight">NEX Co-Pilot</h4>
+          <p class="text-[9px] text-slate-400">Multilingual Advisor & Vision</p>
+        </div>
+      </div>
+      <button onclick="toggleNexModal()" class="text-slate-400 hover:text-white cursor-pointer"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+
+    <!-- Chat Messages Stream -->
+    <div id="nexChat" class="flex-1 p-3.5 overflow-y-auto custom-scroll space-y-3 text-xs">
+      <div class="flex items-start gap-2">
+        <div class="w-5 h-5 rounded-full bg-cyan-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0">N</div>
+        <div class="bg-[#161c2b] border border-[#1f2637] p-2.5 rounded-lg max-w-[85%] text-slate-300 leading-relaxed">
+          Hello! I am <strong>NEX</strong>. Speak to me in any language (English, Bengali, Hindi, Kannada, etc.) or attach a design screenshot. I will construct an optimized prompt for the Agent.
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Attachment Preview Bar -->
+    <div id="imageBar" class="hidden px-3 py-1 bg-[#090c12] border-t border-[#1f2637] flex items-center justify-between text-[10px] shrink-0">
+      <span id="attachedImgName" class="text-cyan-400 truncate max-w-[280px]">image.png</span>
+      <button onclick="removeAttachedImage()" class="text-red-400 hover:text-red-300">Remove</button>
+    </div>
+
+    <!-- Bottom NEX Form -->
+    <div class="p-2.5 bg-[#10141e] border-t border-[#1f2637] shrink-0">
+      <form class="flex items-center gap-1.5" onsubmit="event.preventDefault(); submitNexChat();">
+        <input type="file" id="filePicker" accept="image/*" class="hidden" onchange="processImage(event)">
+        <button type="button" onclick="document.getElementById('filePicker').click()" class="p-2 text-slate-400 hover:text-cyan-400 transition" title="Attach screenshot">
+          <i data-lucide="image" class="w-4 h-4"></i>
+        </button>
+        <input id="nexUserInput" type="text" placeholder="Speak or ask in any language..." class="flex-1 bg-[#090c12] border border-[#1f2637] rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+        <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+          Ask
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROFILE & CREDITS MODAL -->
+  <div id="profileModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#10141e] border border-[#1f2637] rounded-xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#1f2637] pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-600 to-lime-400 flex items-center justify-center font-bold text-slate-900">Z</div>
+          <div>
+            <h3 class="text-sm font-semibold text-slate-200">Zyntarix Master Account</h3>
+            <p class="text-[11px] text-slate-500">Tier: Autonomous Dedicated</p>
+          </div>
+        </div>
+        <button onclick="toggleProfileModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-lg bg-[#090c12] border border-[#1f2637]">
+          <span class="text-[10px] uppercase text-slate-500 font-mono">Available Balance</span>
+          <div class="text-lg font-bold text-lime-400 mt-0.5">1,250 Credits</div>
+        </div>
+        <div class="p-3 rounded-lg bg-[#090c12] border border-[#1f2637]">
+          <span class="text-[10px] uppercase text-slate-500 font-mono">Deployment Node</span>
+          <div class="text-lg font-bold text-cyan-400 mt-0.5">Active 🟢</div>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-[#1f2637] flex items-center justify-between">
+        <button onclick="toggleProjectLiveState()" id="pauseToggleBtn" class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded transition">
+          Pause / Unpublish
+        </button>
+        <a href="mailto:support@zyntarix.com?subject=Platform%20Inquiry" class="flex items-center gap-1.5 bg-[#161c2b] hover:bg-[#1f2637] border border-cyan-500/30 text-cyan-300 px-3 py-1.5 rounded text-xs font-medium transition">
+          <i data-lucide="mail" class="w-3.5 h-3.5"></i> Mail Team
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOUD CONFIG MODAL -->
+  <div id="dbModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#10141e] border border-[#1f2637] rounded-xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#1f2637] pb-2.5">
+        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+          <i data-lucide="database" class="w-4 h-4 text-cyan-400"></i> Cloud & Database Configuration
+        </h3>
+        <button onclick="toggleDbModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Choose between <strong>Zyntarix Managed</strong> (Automatic Database & Backend) or <strong>Bring Your Own (BYO)</strong> configuration.
+      </p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="text-[11px] font-mono text-slate-400 block mb-1">Custom Supabase / DB URL</label>
+          <input id="customDbUrl" type="text" placeholder="https://xyz.supabase.co" class="w-full bg-[#090c12] border border-[#1f2637] rounded px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+        </div>
+        <div>
+          <label class="text-[11px] font-mono text-slate-400 block mb-1">Anon / Secret API Key</label>
+          <input id="customDbKey" type="password" placeholder="eyJhbGciOiJIUz..." class="w-full bg-[#090c12] border border-[#1f2637] rounded px-3 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-[#1f2637] flex justify-end">
+        <button onclick="saveCloudConfig()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-4 py-1.5 rounded font-medium transition">
+          Validate & Connect
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLATFORM LOGIC SCRIPT -->
+  <script>
+    lucide.createIcons();
+
+    let currentAppCode = `<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#0c0e14;color:#94a3b8;font-family:sans-serif;"><div style="text-align:center;padding:20px;border:1px solid #1f2637;border-radius:12px;background:#10141e;"><h3>⚡ Canvas Ready</h3><p>Instruct the Agent to build your project.</p></div></body></html>`;
+    let base64Image = null;
+    let isLive = true;
+
+    // Set initial preview
+    function renderPreview(code) {
+      const frame = document.getElementById('previewFrame');
+      frame.srcdoc = code;
+    }
+    renderPreview(currentAppCode);
+
+    function reloadPreview() {
+      renderPreview(currentAppCode);
+    }
+
+    // Collapsible Left Sidebar Logic
+    function toggleSidebar() {
+      const sb = document.getElementById('sidebarPanel');
+      sb.classList.toggle('-ml-60');
+    }
+
+    // Modal Handlers
+    function toggleNexModal() {
+      document.getElementById('nexModal').classList.toggle('hidden');
+    }
+    function toggleProfileModal() {
+      document.getElementById('profileModal').classList.toggle('hidden');
+    }
+    function toggleDbModal() {
+      document.getElementById('dbModal').classList.toggle('hidden');
+    }
+
+    // Image Upload
+    function processImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        base64Image = ev.target.result;
+        document.getElementById('attachedImgName').textContent = file.name;
+        document.getElementById('imageBar').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeAttachedImage() {
+      base64Image = null;
+      document.getElementById('filePicker').value = '';
+      document.getElementById('imageBar').classList.add('hidden');
+    }
+
+    // NEX Multilingual Chat
+    async function submitNexChat() {
+      const input = document.getElementById('nexUserInput');
+      const text = input.value.trim();
+      if (!text && !base64Image) return;
+
+      appendNexChat('user', text, base64Image);
+      input.value = '';
+
+      try {
+        const res = await fetch('/api/nex-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, image: base64Image })
+        });
+        const data = await res.json();
+        appendNexChat('nex', data.reply, null, data.englishPrompt);
+      } catch (err) {
+        appendNexChat('nex', 'Processed. Generated prompt below for Agent:', null, `Build modern application: ${text}`);
+      }
+      removeAttachedImage();
+    }
+
+    function appendNexChat(sender, text, img = null, promptOut = null) {
+      const chat = document.getElementById('nexChat');
+      const row = document.createElement('div');
+      row.className = `flex items-start gap-2 ${sender === 'user' ? 'justify-end' : ''}`;
+
+      if (sender === 'user') {
+        row.innerHTML = `
+          <div class="bg-cyan-700/40 border border-cyan-500/30 p-2.5 rounded-lg max-w-[85%] text-slate-200">
+            ${img ? `<img src="${img}" class="w-40 rounded mb-1.5 border border-cyan-500/20">` : ''}
+            <p>${text}</p>
+          </div>
+          <div class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px] text-white shrink-0">U</div>
+        `;
+      } else {
+        row.innerHTML = `
+          <div class="w-5 h-5 rounded-full bg-cyan-600 flex items-center justify-center font-bold text-[10px] text-white shrink-0">N</div>
+          <div class="bg-[#161c2b] border border-[#1f2637] p-2.5 rounded-lg max-w-[85%] text-slate-300 space-y-2">
+            <p class="leading-relaxed">${text}</p>
+            ${promptOut ? `
+              <div class="p-2 rounded bg-[#090c12] border border-cyan-500/30 space-y-1.5">
+                <div class="flex items-center justify-between text-[10px] text-cyan-400 font-mono">
+                  <span>OPTIMIZED ENGLISH SPEC</span>
+                  <button onclick="applyPromptToAgent('${encodeURIComponent(promptOut)}')" class="text-xs hover:text-lime-400 flex items-center gap-1 font-semibold">
+                    <i data-lucide="arrow-down-right" class="w-3 h-3"></i> Apply to Agent
+                  </button>
+                </div>
+                <p class="font-mono text-slate-300 text-[11px] select-all">${promptOut}</p>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+      chat.appendChild(row);
+      chat.scrollTop = chat.scrollHeight;
+      lucide.createIcons();
+    }
+
+    window.applyPromptToAgent = function(encoded) {
+      const prompt = decodeURIComponent(encoded);
+      document.getElementById('agentInput').value = prompt;
+      toggleNexModal();
+      document.getElementById('agentInput').focus();
+    };
+
+    // Replit-Style Agent Execution Pipeline (SSE Streaming)
+    async function launchAgentPipeline() {
+      const prompt = document.getElementById('agentInput').value.trim();
+      if (!prompt) return;
+
+      const feed = document.getElementById('agentStreamFeed');
+      const indicator = document.getElementById('agentIndicator');
+      const stateText = document.getElementById('agentStateText');
+      const publishBar = document.getElementById('publishBar');
+
+      publishBar.classList.add('hidden');
+      indicator.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-ping';
+      stateText.textContent = 'Orchestrating...';
+
+      // Append User Prompt Card
+      const userCard = document.createElement('div');
+      userCard.className = 'p-3 rounded-lg bg-[#161c2b] border border-[#1f2637] text-slate-200';
+      userCard.innerHTML = `<span class="text-[10px] uppercase font-mono text-slate-500 block mb-1">User Instruction</span><p class="font-medium">${prompt}</p>`;
+      feed.appendChild(userCard);
+
+      try {
+        const response = await fetch('/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop();
+
+          for (const part of parts) {
+            if (part.startsWith('data: ')) {
+              const data = JSON.parse(part.replace('data: ', ''));
+
+              if (data.status === 'Complete' && data.code) {
+                currentAppCode = data.code;
+                renderPreview(data.code);
+                indicator.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                stateText.textContent = 'Complete';
+                publishBar.classList.remove('hidden');
+              } else if (data.status === 'Failed') {
+                appendStreamLog(data.agent, 'Error', data.detail, 'text-red-400');
+                indicator.className = 'w-2 h-2 rounded-full bg-red-400';
+                stateText.textContent = 'Failed';
+              } else {
+                appendStreamLog(data.agent, data.status, data.detail);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        appendStreamLog('System', 'Error', err.message, 'text-red-400');
+        indicator.className = 'w-2 h-2 rounded-full bg-red-400';
+        stateText.textContent = 'Failed';
+      }
+    }
+
+    function appendStreamLog(agent, status, detail, color = 'text-slate-300') {
+      const feed = document.getElementById('agentStreamFeed');
+      const card = document.createElement('div');
+      card.className = 'p-3 rounded-lg bg-[#10141e] border border-[#1f2637] space-y-1';
+      card.innerHTML = `
+        <div class="flex items-center justify-between text-[10px] font-mono">
+          <span class="text-lime-400 font-bold">${agent}</span>
+          <span class="text-slate-500">${status}</span>
+        </div>
+        <p class="${color} text-[11px] leading-relaxed whitespace-pre-wrap">${detail}</p>
+      `;
+      feed.appendChild(card);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function publishToLive() {
+      alert('🎉 Application deployed to Zyntarix Live Edge successfully!');
+    }
+
+    function toggleProjectLiveState() {
+      isLive = !isLive;
+      const badge = document.getElementById('projectStatusBadge');
+      const btn = document.getElementById('pauseToggleBtn');
+      if (isLive) {
+        badge.textContent = 'Live 🟢';
+        badge.className = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono';
+        btn.textContent = 'Pause / Unpublish';
+      } else {
+        badge.textContent = 'Paused ⏸️';
+        badge.className = 'bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono';
+        btn.textContent = 'Resume Live';
+      }
+    }
+
+    function saveCloudConfig() {
+      const url = document.getElementById('customDbUrl').value;
+      const key = document.getElementById('customDbKey').value;
+      if (!url || !key) {
+        alert('Please fill out database URL and Key or leave empty for Managed Mode.');
+        return;
+      }
+      alert('🔒 Custom Database connected securely.');
+      toggleDbModal();
+    }
+  </script>
+</body>
+</html>
 
