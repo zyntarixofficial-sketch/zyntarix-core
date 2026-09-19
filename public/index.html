@@ -1,1 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+  <title>Zyntarix | Autonomous Software Studio</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background-color: #0b0e14;
+      color: #cbd5e1;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .glow-nex { box-shadow: 0 0 18px rgba(6, 182, 212, 0.45); }
+    /* Dynamic full height for all devices */
+    .app-viewport { height: 100vh; height: 100dvh; }
+  </style>
+</head>
+<body class="app-viewport flex flex-col overflow-hidden select-none bg-[#0b0e14]">
+
+  <!-- TOP HEADER -->
+  <header class="h-12 bg-[#10141e] border-b border-[#1f2637] flex items-center justify-between px-3 z-30 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <!-- 1-Tap Collapsible Sidebar Toggle -->
+      <button onclick="toggleSidebar()" class="p-1.5 rounded-lg hover:bg-[#1a2130] text-slate-300 transition" title="Toggle Workspace">
+        <i data-lucide="panel-left" class="w-4 h-4"></i>
+      </button>
+
+      <div class="flex items-center gap-1.5 font-bold text-sm tracking-wide text-lime-400">
+        <i data-lucide="cpu" class="w-4 h-4"></i> zyntarix.
+      </div>
+      <span class="text-xs text-slate-500 hidden md:inline">• Autonomous Studio</span>
+      <span id="liveStatusBadge" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono">Ready 🟢</span>
+    </div>
+
+    <!-- Mobile View Switcher Tabs (Agent vs Preview) -->
+    <div class="flex md:hidden bg-[#07090e] border border-[#1f2637] rounded-lg p-0.5 text-[11px] font-medium">
+      <button id="mobileTabAgent" onclick="switchMobileView('agent')" class="px-2.5 py-1 rounded bg-cyan-600 text-white font-semibold transition">Agent</button>
+      <button id="mobileTabPreview" onclick="switchMobileView('preview')" class="px-2.5 py-1 rounded text-slate-400 hover:text-white transition">Preview</button>
+    </div>
+
+    <!-- Header Actions & Master Profile -->
+    <div class="flex items-center gap-2">
+      <button onclick="toggleDbModal()" class="hidden sm:flex items-center gap-1 bg-[#151a26] border border-[#222b3e] hover:border-cyan-500/40 text-slate-300 px-2.5 py-1 rounded text-xs transition">
+        <i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400"></i> Cloud
+      </button>
+
+      <div class="flex items-center gap-1 bg-[#151a26] border border-lime-500/30 text-lime-400 px-2.5 py-1 rounded-full text-xs font-mono">
+        <i data-lucide="zap" class="w-3.5 h-3.5 fill-current"></i>
+        <span>1,250</span>
+      </div>
+
+      <button onclick="toggleProfileModal()" class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-lime-400 flex items-center justify-center text-slate-950 font-bold text-xs shadow hover:opacity-90 transition">
+        Z
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE CONTAINER -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- 1. Collapsible Left Sidebar (Slide out on mobile, toggle on desktop) -->
+    <aside id="sidebarPanel" class="w-60 bg-[#0e121b] border-r border-[#1f2637] flex flex-col transition-all duration-300 ease-in-out shrink-0 absolute md:static z-20 h-full shadow-2xl md:shadow-none -ml-60 md:ml-0">
+      <div class="p-3 border-b border-[#1f2637] flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <span>Workspace Hub</span>
+        <button onclick="toggleSidebar()" class="text-slate-400 hover:text-white md:hidden">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-2 space-y-1 text-xs flex-1">
+        <div class="p-2 rounded bg-[#161c2b] text-lime-400 font-medium flex items-center gap-2">
+          <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Active Session
+        </div>
+        <div onclick="toggleDbModal()" class="p-2 rounded text-slate-400 hover:bg-[#151a26] hover:text-white cursor-pointer flex items-center gap-2 transition">
+          <i data-lucide="database" class="w-3.5 h-3.5 text-cyan-400"></i> Managed Database
+        </div>
+        <div class="p-2 rounded text-slate-400 hover:bg-[#151a26] hover:text-white cursor-pointer flex items-center gap-2 transition">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i> Zero-Leak Secrets
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-[#1f2637] text-[11px] text-slate-500 font-mono">
+        <div>Zyntarix Studio v2.6</div>
+        <div class="text-lime-400/80">Dedicated Node Active</div>
+      </div>
+    </aside>
+
+    <!-- Overlay backdrop when sidebar opens on mobile -->
+    <div id="sidebarBackdrop" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/60 z-10 md:hidden"></div>
+
+    <!-- 2. Core Agent Stream Column -->
+    <main id="agentColumn" class="flex-1 flex flex-col bg-[#0b0e14] border-r border-[#1f2637] min-w-0 h-full">
+      <!-- Status Strip -->
+      <div class="h-8 bg-[#10141e] border-b border-[#1f2637] px-3.5 flex items-center justify-between text-[11px] shrink-0 font-mono">
+        <div class="flex items-center gap-2">
+          <span id="agentPulse" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="text-slate-300 font-semibold font-sans">Autonomous Orchestrator</span>
+        </div>
+        <span id="agentPhaseText" class="text-slate-500">Idle / Ready</span>
+      </div>
+
+      <!-- Agent Message & Action Feed -->
+      <div id="agentFeed" class="flex-1 p-3 sm:p-4 overflow-y-auto custom-scroll space-y-3 text-xs">
+        <div class="p-3.5 rounded-xl bg-[#10141e] border border-[#1f2637] text-slate-300 leading-relaxed">
+          <h3 class="font-bold text-sm text-lime-400 mb-1">⚡ Welcome to Zyntarix Engine</h3>
+          <p class="text-slate-400">Describe the application you want to build below. You can also click the floating <strong>NEX bot</strong> icon to chat in Bengali, Hindi, or any language with design screenshots.</p>
+        </div>
+      </div>
+
+      <!-- Deployment Success & Publish Banner (Appears when code ready) -->
+      <div id="deployBanner" class="hidden p-2.5 bg-[#10141e] border-t border-emerald-500/30 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-1.5 text-xs text-emerald-400 font-medium truncate">
+          <i data-lucide="check-circle-2" class="w-4 h-4 shrink-0"></i>
+          <span class="truncate">Build Verified & Deployed to Preview</span>
+        </div>
+        <button onclick="switchMobileView('preview')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded text-xs transition shrink-0">
+          Open Canvas
+        </button>
+      </div>
+
+      <!-- Floating Bottom Prompt Box (Auto lifts with mobile keyboard) -->
+      <div class="p-2.5 sm:p-3 bg-[#10141e] border-t border-[#1f2637] shrink-0 sticky bottom-0 z-10 shadow-lg">
+        <form class="flex items-center gap-2" onsubmit="event.preventDefault(); startBuildPipeline();">
+          <input id="promptInput" type="text" placeholder="Message Agent (e.g. Build an EdTech quiz portal with leaderboard)..." class="flex-1 bg-[#07090e] border border-[#1f2637] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-cyan-500 font-mono shadow-inner">
+          <button type="submit" id="sendBtn" class="bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition shrink-0 flex items-center gap-1.5 shadow">
+            <span>Build</span>
+            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+    </main>
+
+    <!-- 3. Interactive Preview Canvas Column -->
+    <section id="previewColumn" class="hidden md:flex w-full md:w-[46%] bg-[#06080d] flex-col shrink-0 h-full border-l border-[#1f2637]">
+      <div class="h-8 bg-[#10141e] border-b border-[#1f2637] px-3 flex items-center justify-between text-xs shrink-0">
+        <div class="flex items-center gap-1.5 text-slate-300 font-medium">
+          <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span>Live Canvas Preview</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="reloadPreviewCanvas()" class="text-slate-400 hover:text-white p-1 rounded transition" title="Reload Canvas">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 bg-white relative overflow-hidden">
+        <iframe id="liveFrame" class="w-full h-full border-none" sandbox="allow-scripts allow-modals allow-same-origin"></iframe>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- FLOATING NEX TRIGGER BUTTON -->
+  <button onclick="toggleNexModal()" class="fixed bottom-5 right-5 sm:bottom-6 sm:right-7 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-600 to-cyan-500 text-white flex items-center justify-center shadow-2xl z-30 transition hover:scale-105 glow-nex cursor-pointer" title="Talk to NEX">
+    <i data-lucide="bot" class="w-6 h-6"></i>
+  </button>
+
+  <!-- NEX MULTILINGUAL POP-UP (Bottom sheet on mobile, card on desktop) -->
+  <div id="nexModal" class="hidden fixed bottom-0 right-0 sm:bottom-20 sm:right-7 w-full sm:w-[410px] h-[82vh] sm:h-[530px] bg-[#10141e] border border-[#1f2637] sm:rounded-2xl rounded-t-2xl flex flex-col z-40 shadow-2xl overflow-hidden">
+    <!-- NEX Header -->
+    <div class="h-12 bg-[#151a26] px-3.5 flex items-center justify-between border-b border-[#1f2637] shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-xs text-slate-950">N</div>
+        <div>
+          <h4 class="text-xs font-bold text-cyan-400">NEX Co-Pilot</h4>
+          <p class="text-[9px] text-slate-400">Multilingual Voice & Vision</p>
+        </div>
+      </div>
+      <button onclick="toggleNexModal()" class="text-slate-400 hover:text-white p-1 cursor-pointer">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Chat Body -->
+    <div id="nexChatStream" class="flex-1 p-3.5 overflow-y-auto custom-scroll space-y-3 text-xs">
+      <div class="flex items-start gap-2">
+        <div class="w-5 h-5 rounded-full bg-cyan-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0">N</div>
+        <div class="bg-[#151a26] border border-[#1f2637] p-2.5 rounded-xl max-w-[85%] text-slate-300 leading-relaxed">
+          Hello! I am <strong>NEX</strong>. You can chat with me in English, Bengali, Hindi, Kannada, etc., or attach screenshots. Ask me anything or build an app.
+        </div>
+      </div>
+    </div>
+
+    <!-- Attachment Tag -->
+    <div id="attachedImageBar" class="hidden px-3 py-1 bg-[#080b11] border-t border-[#1f2637] flex items-center justify-between text-[11px] shrink-0">
+      <span id="attachedFileName" class="text-cyan-400 truncate max-w-[240px]">image.png</span>
+      <button onclick="clearAttachedImage()" class="text-red-400 hover:text-red-300">Remove</button>
+    </div>
+
+    <!-- NEX Bottom Input Box -->
+    <div class="p-2.5 bg-[#10141e] border-t border-[#1f2637] shrink-0">
+      <form class="flex items-center gap-1.5" onsubmit="event.preventDefault(); sendNexMessage();">
+        <input type="file" id="nexFilePicker" accept="image/*" class="hidden" onchange="handleImageAttach(event)">
+        <button type="button" onclick="document.getElementById('nexFilePicker').click()" class="p-2 text-slate-400 hover:text-cyan-400 transition" title="Attach design screenshot">
+          <i data-lucide="image" class="w-4 h-4"></i>
+        </button>
+        <input id="nexInput" type="text" placeholder="Speak or ask in your preferred language..." class="flex-1 bg-[#07090e] border border-[#1f2637] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+        <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
+          Ask
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROFILE MODAL -->
+  <div id="profileModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#10141e] border border-[#1f2637] rounded-2xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#1f2637] pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-600 to-lime-400 flex items-center justify-center font-bold text-slate-950">Z</div>
+          <div>
+            <h3 class="text-sm font-semibold text-slate-200">Zyntarix Master Account</h3>
+            <p class="text-[11px] text-slate-500">Autonomous Dedicated Studio</p>
+          </div>
+        </div>
+        <button onclick="toggleProfileModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-xl bg-[#07090e] border border-[#1f2637]">
+          <span class="text-[10px] uppercase text-slate-500 font-mono">Available Balance</span>
+          <div class="text-lg font-bold text-lime-400 mt-0.5">1,250 Credits</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#07090e] border border-[#1f2637]">
+          <span class="text-[10px] uppercase text-slate-500 font-mono">Studio Node</span>
+          <div class="text-lg font-bold text-cyan-400 mt-0.5">Active 🟢</div>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-[#1f2637] flex items-center justify-between">
+        <button onclick="toggleProjectLiveState()" id="pauseBtn" class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-lg transition">
+          Pause Project
+        </button>
+        <button onclick="toggleProfileModal()" class="text-xs bg-[#151a26] text-slate-300 hover:text-white px-3.5 py-1.5 rounded-lg border border-[#1f2637] transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOUD DB CONFIG MODAL -->
+  <div id="dbModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#10141e] border border-[#1f2637] rounded-2xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#1f2637] pb-2.5">
+        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+          <i data-lucide="database" class="w-4 h-4 text-cyan-400"></i> Cloud & Database Configuration
+        </h3>
+        <button onclick="toggleDbModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Connect custom PostgreSQL/Supabase database or continue using Zyntarix Instant Managed Cloud.
+      </p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-[11px] font-mono text-slate-400 block mb-1">Custom Database / API URL</label>
+          <input type="text" placeholder="https://xyz.supabase.co" class="w-full bg-[#07090e] border border-[#1f2637] rounded-lg px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+        </div>
+      </div>
+      <div class="pt-2 border-t border-[#1f2637] flex justify-end">
+        <button onclick="toggleDbModal(); alert('🔒 Managed Cloud Connected');" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs px-4 py-1.5 rounded-lg font-medium transition">
+          Save & Connect
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT ENGINE LOGIC -->
+  <script>
+    lucide.createIcons();
+
+    let currentAppSource = `<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#0c0e14;color:#94a3b8;font-family:sans-serif;"><div style="text-align:center;padding:24px;border:1px solid #1f2637;border-radius:12px;background:#10141e;"><h3>⚡ Canvas Ready</h3><p>Instruct the Agent to build your project.</p></div></body></html>`;
+    let attachedImageBase64 = null;
+    let isLiveActive = true;
+
+    // Set initial preview
+    function updatePreviewCanvas(code) {
+      const frame = document.getElementById('liveFrame');
+      frame.srcdoc = code;
+    }
+    updatePreviewCanvas(currentAppSource);
+
+    function reloadPreviewCanvas() {
+      updatePreviewCanvas(currentAppSource);
+    }
+
+    // Collapsible Sidebar Toggle
+    function toggleSidebar() {
+      const sb = document.getElementById('sidebarPanel');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      const isHidden = sb.classList.contains('-ml-60');
+      
+      if (isHidden) {
+        sb.classList.remove('-ml-60');
+        backdrop.classList.remove('hidden');
+      } else {
+        sb.classList.add('-ml-60');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    // Mobile View Switcher (Agent vs Preview)
+    function switchMobileView(view) {
+      const agentCol = document.getElementById('agentColumn');
+      const previewCol = document.getElementById('previewColumn');
+      const btnAgent = document.getElementById('mobileTabAgent');
+      const btnPreview = document.getElementById('mobileTabPreview');
+
+      if (view === 'preview') {
+        agentCol.classList.add('hidden');
+        previewCol.classList.remove('hidden');
+        previewCol.classList.add('flex');
+        btnPreview.className = 'px-2.5 py-1 rounded bg-cyan-600 text-white font-semibold transition';
+        btnAgent.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-white transition';
+      } else {
+        previewCol.classList.add('hidden');
+        previewCol.classList.remove('flex');
+        agentCol.classList.remove('hidden');
+        btnAgent.className = 'px-2.5 py-1 rounded bg-cyan-600 text-white font-semibold transition';
+        btnPreview.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-white transition';
+      }
+    }
+
+    // Modal Toggles
+    function toggleNexModal() {
+      document.getElementById('nexModal').classList.toggle('hidden');
+    }
+    function toggleProfileModal() {
+      document.getElementById('profileModal').classList.toggle('hidden');
+    }
+    function toggleDbModal() {
+      document.getElementById('dbModal').classList.toggle('hidden');
+    }
+
+    // Image Upload Handling
+    function handleImageAttach(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        attachedImageBase64 = e.target.result;
+        document.getElementById('attachedFileName').textContent = file.name;
+        document.getElementById('attachedImageBar').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAttachedImage() {
+      attachedImageBase64 = null;
+      document.getElementById('nexFilePicker').value = '';
+      document.getElementById('attachedImageBar').classList.add('hidden');
+    }
+
+    // NEX Multilingual Chat
+    async function sendNexMessage() {
+      const input = document.getElementById('nexInput');
+      const text = input.value.trim();
+      if (!text && !attachedImageBase64) return;
+
+      appendNexBubble('user', text, attachedImageBase64);
+      input.value = '';
+
+      try {
+        const res = await fetch('/api/nex-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, image: attachedImageBase64 })
+        });
+        const data = await res.json();
+        appendNexBubble('nex', data.reply, null, data.englishPrompt);
+      } catch (err) {
+        appendNexBubble('nex', 'Processed. Generated technical specification below:', null, `Build modern application: ${text}`);
+      }
+      clearAttachedImage();
+    }
+
+    function appendNexBubble(sender, text, img = null, promptOut = null) {
+      const feed = document.getElementById('nexChatStream');
+      const bubble = document.createElement('div');
+      bubble.className = `flex items-start gap-2 ${sender === 'user' ? 'justify-end' : ''}`;
+
+      if (sender === 'user') {
+        bubble.innerHTML = `
+          <div class="bg-cyan-700/40 border border-cyan-500/30 p-2.5 rounded-xl max-w-[85%] text-slate-100">
+            ${img ? `<img src="${img}" class="w-40 rounded-lg mb-1.5 border border-cyan-500/20">` : ''}
+            <p>${text}</p>
+          </div>
+          <div class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px] text-white shrink-0">U</div>
+        `;
+      } else {
+        bubble.innerHTML = `
+          <div class="w-5 h-5 rounded-full bg-cyan-600 flex items-center justify-center font-bold text-[10px] text-white shrink-0">N</div>
+          <div class="bg-[#151a26] border border-[#1f2637] p-2.5 rounded-xl max-w-[85%] text-slate-300 space-y-2">
+            <p class="leading-relaxed">${text}</p>
+            ${promptOut ? `
+              <div class="p-2.5 rounded-lg bg-[#080b11] border border-cyan-500/30 space-y-1.5">
+                <div class="flex items-center justify-between text-[10px] text-cyan-400 font-mono">
+                  <span>OPTIMIZED AGENT SPEC</span>
+                  <button onclick="transferToAgent('${encodeURIComponent(promptOut)}')" class="text-xs text-lime-400 hover:underline flex items-center gap-1 font-semibold">
+                    <i data-lucide="arrow-down-right" class="w-3.5 h-3.5"></i> Apply to Agent
+                  </button>
+                </div>
+                <p class="font-mono text-slate-300 text-[11px] select-all leading-snug">${promptOut}</p>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+      feed.appendChild(bubble);
+      feed.scrollTop = feed.scrollHeight;
+      lucide.createIcons();
+    }
+
+    window.transferToAgent = function(encoded) {
+      const prompt = decodeURIComponent(encoded);
+      document.getElementById('promptInput').value = prompt;
+      toggleNexModal();
+      document.getElementById('promptInput').focus();
+    };
+
+    // Agent SSE Execution Pipeline
+    async function startBuildPipeline() {
+      const input = document.getElementById('promptInput');
+      const prompt = input.value.trim();
+      if (!prompt) return;
+
+      const feed = document.getElementById('agentFeed');
+      const pulse = document.getElementById('agentPulse');
+      const phase = document.getElementById('agentPhaseText');
+      const banner = document.getElementById('deployBanner');
+
+      banner.classList.add('hidden');
+      pulse.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-ping';
+      phase.textContent = 'Orchestrating...';
+
+      // Append Instruction Card
+      const userCard = document.createElement('div');
+      userCard.className = 'p-3 rounded-xl bg-[#151a26] border border-[#1f2637] text-slate-200';
+      userCard.innerHTML = `<span class="text-[10px] uppercase font-mono text-slate-500 block mb-1">Instruction Received</span><p class="font-medium">${prompt}</p>`;
+      feed.appendChild(userCard);
+
+      try {
+        const response = await fetch('/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const payload = JSON.parse(line.replace('data: ', ''));
+
+              if (payload.status === 'Complete' && payload.code) {
+                currentAppSource = payload.code;
+                updatePreviewCanvas(payload.code);
+                pulse.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                phase.textContent = 'Build Complete';
+                banner.classList.remove('hidden');
+              } else if (payload.status === 'Failed') {
+                appendFeedLog(payload.agent, 'Error', payload.detail, 'text-red-400');
+                pulse.className = 'w-2 h-2 rounded-full bg-red-400';
+                phase.textContent = 'Build Failed';
+              } else {
+                appendFeedLog(payload.agent, payload.status, payload.detail);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        appendFeedLog('System', 'Failed', err.message, 'text-red-400');
+        pulse.className = 'w-2 h-2 rounded-full bg-red-400';
+        phase.textContent = 'Failed';
+      }
+    }
+
+    function appendFeedLog(agent, status, detail, textColor = 'text-slate-300') {
+      const feed = document.getElementById('agentFeed');
+      const item = document.createElement('div');
+      item.className = 'p-3 rounded-xl bg-[#10141e] border border-[#1f2637] space-y-1';
+      item.innerHTML = `
+        <div class="flex items-center justify-between text-[10px] font-mono">
+          <span class="text-lime-400 font-bold">${agent}</span>
+          <span class="text-slate-500">${status}</span>
+        </div>
+        <p class="${textColor} text-[11px] leading-relaxed whitespace-pre-wrap">${detail}</p>
+      `;
+      feed.appendChild(item);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function toggleProjectLiveState() {
+      isLiveActive = !isLiveActive;
+      const badge = document.getElementById('liveStatusBadge');
+      const btn = document.getElementById('pauseBtn');
+      if (isLiveActive) {
+        badge.textContent = 'Ready 🟢';
+        badge.className = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono';
+        btn.textContent = 'Pause Project';
+      } else {
+        badge.textContent = 'Paused ⏸️';
+        badge.className = 'bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono';
+        btn.textContent = 'Resume Live';
+      }
+    }
+  </script>
+</body>
+</html>
 
