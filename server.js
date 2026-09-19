@@ -22,7 +22,7 @@ app.post('/api/build', async (req, res) => {
   try {
     // 1. ARCHITECT AGENT: Requirements & File Decomposition
     sendEvent('Architect Agent', 'Planning', 'Analyzing prompt requirements and breaking down software architecture...');
-    const plannerModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const plannerModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     const planPrompt = `Act as an expert software architect. Break down the system requirements and technical specification for: "${prompt}". Output concise architecture phases and required files.`;
     const planResult = await plannerModel.generateContent(planPrompt);
     sendEvent('Architect Agent', 'Completed', planResult.response.text());
