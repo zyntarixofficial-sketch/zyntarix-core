@@ -58,9 +58,7 @@ model User {
   email     String   @unique
   name      String?
   role      UserRole @default(USER)
-
   planId    String   @default("free")
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -78,11 +76,10 @@ model Project {
   name        String
   description String?
   status      ProjectStatus @default(PLANNING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User
+  user User @relation(fields: [userId], references: [id])
   jobs Job[]
 
   @@index([userId])
@@ -92,34 +89,27 @@ model Project {
 model CreditAccount {
   id        String   @id @default(cuid())
   userId    String   @unique
-
-  available Int @default(0)
-  reserved  Int @default(0)
-  used      Int @default(0)
-
+  available Int      @default(0)
+  reserved  Int      @default(0)
+  used      Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User
+  user User @relation(fields: [userId], references: [id])
 }
 
 model CreditTransaction {
-  id        String   @id @default(cuid())
-  userId    String
-
-  type      CreditTransactionType
-  status    CreditTransactionStatus @default(COMPLETED)
-
-  amount    Int
-
-  projectId String?
-  jobId     String?
-
+  id          String                  @id @default(cuid())
+  userId      String
+  type        CreditTransactionType
+  status      CreditTransactionStatus @default(COMPLETED)
+  amount      Int
+  projectId   String?
+  jobId       String?
   description String?
+  createdAt   DateTime                @default(now())
 
-  createdAt DateTime @default(now())
-
-  user User
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([createdAt])
@@ -128,26 +118,22 @@ model CreditTransaction {
 }
 
 model Job {
-  id        String   @id @default(cuid())
-  userId    String
-  projectId String?
+  id               String    @id @default(cuid())
+  userId           String
+  projectId        String?
+  type             JobType
+  status           JobStatus @default(QUEUED)
+  estimatedCredits Int       @default(0)
+  actualCredits    Int       @default(0)
+  inputJson        Json?
+  outputJson       Json?
+  errorText        String?
+  createdAt        DateTime  @default(now())
+  startedAt        DateTime?
+  finishedAt       DateTime?
 
-  type      JobType
-  status    JobStatus @default(QUEUED)
-
-  estimatedCredits Int @default(0)
-  actualCredits    Int @default(0)
-
-  inputJson  Json?
-  outputJson Json?
-  errorText  String?
-
-  createdAt DateTime @default(now())
-  startedAt DateTime?
-  finishedAt DateTime?
-
-  user    User    @relation(fields: [userId], references: [id])
-project Project? @relation(fields: [projectId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
 
   @@index([userId])
   @@index([projectId])
@@ -160,34 +146,28 @@ model UsageRecord {
   userId    String
   projectId String?
   jobId     String?
-
   action    String
   units     Int      @default(1)
-
   metadata  Json?
-
   createdAt DateTime @default(now())
 
-  user User
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([createdAt])
 }
 
 model StackDay {
-  id        String   @id @default(cuid())
-  userId    String
+  id            String   @id @default(cuid())
+  userId        String
+  day           Int
+  activityDate  DateTime
+  completed     Boolean  @default(false)
+  rewardGranted Boolean  @default(false)
+  rewardCredits Int      @default(0)
+  createdAt     DateTime @default(now())
 
-  day       Int
-  activityDate DateTime
-
-  completed Boolean @default(false)
-  rewardGranted Boolean @default(false)
-  rewardCredits Int @default(0)
-
-  createdAt DateTime @default(now())
-
-user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, day])
   @@index([userId])
