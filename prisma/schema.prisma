@@ -187,7 +187,7 @@ model StackDay {
 
   createdAt DateTime @default(now())
 
-  user User
+user User @relation(fields: [userId], references: [id])
 
   @@unique([userId, day])
   @@index([userId])
