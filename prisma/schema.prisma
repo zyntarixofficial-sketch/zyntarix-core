@@ -1,1 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
 
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ProjectStatus {
+  PLANNING
+  BUILDING
+  TESTING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum JobType {
+  NEXA
+  BUILD
+  TEST
+  REPAIR
+  DEPLOY
+}
+
+enum CreditTransactionType {
+  PURCHASE
+  RESERVATION
+  USAGE
+  RELEASE
+  REWARD
+  REFUND
+}
+
+enum CreditTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      UserRole @default(USER)
+
+  planId    String   @default("free")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects      Project[]
+  creditAccount CreditAccount?
+  transactions  CreditTransaction[]
+  jobs          Job[]
+  usageRecords  UsageRecord[]
+  stackDays     StackDay[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User
+  jobs Job[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model CreditAccount {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+
+  available Int @default(0)
+  reserved  Int @default(0)
+  used      Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User
+}
+
+model CreditTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+
+  type      CreditTransactionType
+  status    CreditTransactionStatus @default(COMPLETED)
+
+  amount    Int
+
+  projectId String?
+  jobId     String?
+
+  description String?
+
+  createdAt DateTime @default(now())
+
+  user User
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([projectId])
+  @@index([jobId])
+}
+
+model Job {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String?
+
+  type      JobType
+  status    JobStatus @default(QUEUED)
+
+  estimatedCredits Int @default(0)
+  actualCredits    Int @default(0)
+
+  inputJson  Json?
+  outputJson Json?
+  errorText  String?
+
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  finishedAt DateTime?
+
+  user    User
+  project Project?
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model UsageRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String?
+  jobId     String?
+
+  action    String
+  units     Int      @default(1)
+
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  user User
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model StackDay {
+  id        String   @id @default(cuid())
+  userId    String
+
+  day       Int
+  activityDate DateTime
+
+  completed Boolean @default(false)
+  rewardGranted Boolean @default(false)
+  rewardCredits Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  user User
+
+  @@unique([userId, day])
+  @@index([userId])
+  @@index([activityDate])
+}
