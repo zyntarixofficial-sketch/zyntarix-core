@@ -146,8 +146,8 @@ model Job {
   startedAt DateTime?
   finishedAt DateTime?
 
-  user    User
-  project Project?
+  user    User    @relation(fields: [userId], references: [id])
+project Project? @relation(fields: [projectId], references: [id])
 
   @@index([userId])
   @@index([projectId])
