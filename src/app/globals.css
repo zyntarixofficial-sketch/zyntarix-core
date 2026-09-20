@@ -1,6 +1,15 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+@import "tailwindcss";
+
+@theme {
+  --color-canvas: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-borderSlate: #E2E8F0;
+  --color-brandIndigo: #4F46E5;
+  --color-verifyEmerald: #059669;
+  --color-graphite: #0F172A;
+  --color-mutedText: #64748B;
+}
 
 body {
   background-color: #F8FAFC;
