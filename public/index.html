@@ -1,1 +1,637 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
+  <title>Zyntarix | Autonomous Software Studio</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background-color: #080b11;
+      color: #cbd5e1;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #1f293d; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #334155; }
+    .glow-nex { box-shadow: 0 0 20px rgba(6, 182, 212, 0.45); }
+    .app-viewport { height: 100vh; height: 100dvh; }
+
+    /* 3D Spinning Z Logo Animation */
+    @keyframes spinZ3D {
+      0% { transform: perspective(600px) rotateY(0deg) scale(0.95); }
+      50% { transform: perspective(600px) rotateY(180deg) scale(1.08); filter: drop-shadow(0 0 25px #a3e635); }
+      100% { transform: perspective(600px) rotateY(360deg) scale(0.95); }
+    }
+    .spin-z-logo {
+      animation: spinZ3D 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="app-viewport flex flex-col overflow-hidden select-none bg-[#080b11]">
+
+  <!-- 1. INITIAL SPINNING 'Z' 3D LOADER SCREEN -->
+  <div id="initialLoader" class="fixed inset-0 bg-[#080b11] z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
+    <div class="relative flex items-center justify-center mb-5">
+      <div class="w-20 h-20 rounded-2xl bg-gradient-to-tr from-cyan-600 via-emerald-500 to-lime-400 p-[2px] spin-z-logo shadow-2xl flex items-center justify-center">
+        <div class="w-full h-full bg-[#0d121c] rounded-2xl flex items-center justify-center">
+          <span class="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-tr from-cyan-400 to-lime-400">Z</span>
+        </div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 font-mono text-xs text-slate-400">
+      <span class="w-2 h-2 rounded-full bg-lime-400 animate-pulse"></span>
+      <span class="tracking-widest uppercase text-slate-300">Initializing Zyntarix Core</span>
+    </div>
+  </div>
+
+  <!-- TOP APP HEADER -->
+  <header class="h-12 bg-[#0d111a] border-b border-[#1c2333] flex items-center justify-between px-3 z-30 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <!-- 1-Tap Collapsible Sidebar Toggle -->
+      <button onclick="toggleSidebar()" class="p-1.5 rounded-lg hover:bg-[#182030] text-slate-300 transition" title="Toggle Workspace">
+        <i data-lucide="panel-left" class="w-4 h-4"></i>
+      </button>
+
+      <div class="flex items-center gap-1.5 font-bold text-sm tracking-wide text-lime-400">
+        <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i> zyntarix.
+      </div>
+      <span class="text-xs text-slate-500 hidden md:inline">• Autonomous Studio</span>
+      <span id="liveStatusBadge" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono">Ready 🟢</span>
+    </div>
+
+    <!-- Mobile View Switcher (Agent vs Preview) -->
+    <div class="flex md:hidden bg-[#06080d] border border-[#1c2333] rounded-lg p-0.5 text-[11px] font-medium">
+      <button id="mobileTabAgent" onclick="switchMobileView('agent')" class="px-2.5 py-1 rounded bg-cyan-600 text-white font-semibold transition">Studio</button>
+      <button id="mobileTabPreview" onclick="switchMobileView('preview')" class="px-2.5 py-1 rounded text-slate-400 hover:text-white transition">Preview</button>
+    </div>
+
+    <!-- Top Right: Secrets Vault, Credits & Profile -->
+    <div class="flex items-center gap-2">
+      <!-- Secrets & Keys Vault Trigger -->
+      <button onclick="toggleVaultModal()" class="flex items-center gap-1.5 bg-[#141926] border border-[#20293d] hover:border-cyan-500/50 text-slate-200 px-2.5 py-1 rounded-lg text-xs transition">
+        <i data-lucide="key" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span class="hidden sm:inline">Secrets</span>
+      </button>
+
+      <!-- Credits Pill -->
+      <div onclick="toggleProfileModal()" class="flex items-center gap-1 bg-[#141926] border border-lime-500/30 text-lime-400 px-2.5 py-1 rounded-full text-xs font-mono cursor-pointer hover:border-lime-500 transition">
+        <i data-lucide="zap" class="w-3.5 h-3.5 fill-current"></i>
+        <span id="headerCreditsCount">1,250</span>
+      </div>
+
+      <!-- User Avatar -->
+      <button onclick="toggleProfileModal()" class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-lime-400 flex items-center justify-center text-slate-950 font-black text-xs shadow hover:opacity-90 transition">
+        Z
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN WORKSPACE LAYOUT -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- 1. Collapsible Sidebar (Drawer on mobile, split panel on desktop) -->
+    <aside id="sidebarPanel" class="w-64 bg-[#0b0f17] border-r border-[#1c2333] flex flex-col transition-all duration-300 ease-in-out shrink-0 absolute md:static z-20 h-full shadow-2xl md:shadow-none -ml-64 md:ml-0">
+      <div class="p-3 border-b border-[#1c2333] flex items-center justify-between text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <span>Studio Navigation</span>
+        <button onclick="toggleSidebar()" class="text-slate-400 hover:text-white md:hidden">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-2 space-y-1 text-xs flex-1 overflow-y-auto custom-scroll">
+        <div class="p-2 rounded bg-[#141a27] text-lime-400 font-medium flex items-center gap-2">
+          <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Active Studio Session
+        </div>
+        <div onclick="toggleVaultModal()" class="p-2 rounded text-slate-300 hover:bg-[#141a27] hover:text-white cursor-pointer flex items-center gap-2 transition">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-cyan-400"></i> Zero-Leak Secrets Vault
+        </div>
+        <div onclick="toggleDbModal()" class="p-2 rounded text-slate-300 hover:bg-[#141a27] hover:text-white cursor-pointer flex items-center gap-2 transition">
+          <i data-lucide="database" class="w-3.5 h-3.5 text-emerald-400"></i> Cloud Storage & DB
+        </div>
+
+        <div class="pt-3 pb-1 px-2 text-[10px] uppercase font-mono text-slate-500 tracking-wider">Recent Project History</div>
+        <div id="projectHistoryList" class="space-y-1">
+          <div class="p-2 rounded hover:bg-[#141a27] text-slate-400 hover:text-slate-200 cursor-pointer flex items-center justify-between text-[11px] transition">
+            <span class="truncate">Study Ai Pro Application</span>
+            <span class="text-[9px] text-emerald-400">Live</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-[#1c2333] text-[11px] text-slate-500 font-mono flex items-center justify-between">
+        <div>Zyntarix Studio v3.0</div>
+        <div class="text-lime-400">Ready</div>
+      </div>
+    </aside>
+
+    <!-- Overlay backdrop for mobile drawer -->
+    <div id="sidebarBackdrop" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/70 z-10 md:hidden"></div>
+
+    <!-- 2. Agent Studio Column -->
+    <main id="agentColumn" class="flex-1 flex flex-col bg-[#080b11] border-r border-[#1c2333] min-w-0 h-full">
+      <!-- Status Bar -->
+      <div class="h-8 bg-[#0d111a] border-b border-[#1c2333] px-3 flex items-center justify-between text-[11px] shrink-0 font-mono">
+        <div class="flex items-center gap-2">
+          <span id="agentPulse" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="text-slate-300 font-semibold font-sans">Autonomous Orchestrator</span>
+        </div>
+        <span id="agentPhaseText" class="text-slate-500">Ready for Instructions</span>
+      </div>
+
+      <!-- Agent Message & Build Feed -->
+      <div id="agentFeed" class="flex-1 p-3 sm:p-4 overflow-y-auto custom-scroll space-y-3 text-xs">
+        <div class="p-4 rounded-xl bg-[#0d111a] border border-[#1c2333] text-slate-300 leading-relaxed space-y-2">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-sm text-lime-400 flex items-center gap-1.5">
+              <i data-lucide="sparkles" class="w-4 h-4 text-cyan-400"></i> Autonomous Engine Online
+            </h3>
+            <span class="text-[10px] font-mono text-slate-500">Single-Pass Pipeline</span>
+          </div>
+          <p class="text-slate-400 text-xs">
+            Describe the web app, SaaS tool, or system you want to construct. Click the floating <strong>NEX bot</strong> to discuss architecture, troubleshoot errors, or generate precision prompts.
+          </p>
+        </div>
+      </div>
+
+      <!-- Emergent-style Deployment Action Strip (Shows on completion) -->
+      <div id="deployBanner" class="hidden p-2.5 bg-[#0d111a] border-t border-emerald-500/40 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2 text-xs text-emerald-400 font-medium truncate">
+          <i data-lucide="check-circle-2" class="w-4 h-4 shrink-0"></i>
+          <span class="truncate">Build Verified & Live in Preview Canvas</span>
+        </div>
+        <button onclick="switchMobileView('preview')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded text-xs transition shrink-0">
+          Open Canvas
+        </button>
+      </div>
+
+      <!-- Mobile-Ergonomic Floating Prompt Box -->
+      <div class="p-2.5 sm:p-3 bg-[#0d111a] border-t border-[#1c2333] shrink-0 sticky bottom-0 z-10 shadow-xl">
+        <form class="flex items-center gap-2" onsubmit="event.preventDefault(); startBuildPipeline();">
+          <input id="promptInput" type="text" placeholder="Message Agent (e.g. Build an autonomous task dashboard with charts)..." class="flex-1 bg-[#06080d] border border-[#1c2333] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 focus:outline-none focus:border-cyan-500 font-mono shadow-inner">
+          <button type="submit" id="sendBtn" class="bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition shrink-0 flex items-center gap-1.5 shadow">
+            <span>Build</span>
+            <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+          </button>
+        </form>
+      </div>
+    </main>
+
+    <!-- 3. Interactive Preview Canvas Column -->
+    <section id="previewColumn" class="hidden md:flex w-full md:w-[48%] bg-[#06080d] flex-col shrink-0 h-full border-l border-[#1c2333]">
+      <div class="h-8 bg-[#0d111a] border-b border-[#1c2333] px-3 flex items-center justify-between text-xs shrink-0">
+        <div class="flex items-center gap-1.5 text-slate-300 font-medium">
+          <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span>Live Canvas Preview</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="downloadAppSource()" class="text-slate-400 hover:text-lime-400 p-1 rounded transition" title="Export HTML File">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          </button>
+          <button onclick="reloadPreviewCanvas()" class="text-slate-400 hover:text-white p-1 rounded transition" title="Reload Canvas">
+            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      </div>
+      <div class="flex-1 bg-white relative overflow-hidden">
+        <iframe id="liveFrame" class="w-full h-full border-none" sandbox="allow-scripts allow-modals allow-same-origin"></iframe>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- FLOATING NEX TRIGGER BUTTON -->
+  <button onclick="toggleNexModal()" class="fixed bottom-5 right-5 sm:bottom-6 sm:right-7 w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-600 to-cyan-400 text-slate-950 flex items-center justify-center shadow-2xl z-30 transition hover:scale-105 glow-nex cursor-pointer" title="Chat with NEX">
+    <i data-lucide="bot" class="w-6 h-6 text-slate-950"></i>
+  </button>
+
+  <!-- NEX COMPANION WINDOW (Bottom sheet on phone, sleek floating card on desktop) -->
+  <div id="nexModal" class="hidden fixed bottom-0 right-0 sm:bottom-20 sm:right-7 w-full sm:w-[420px] h-[82vh] sm:h-[540px] bg-[#0d111a] border border-[#1c2333] sm:rounded-2xl rounded-t-2xl flex flex-col z-40 shadow-2xl overflow-hidden">
+    <!-- NEX Header -->
+    <div class="h-12 bg-[#141926] px-3.5 flex items-center justify-between border-b border-[#1c2333] shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-full bg-cyan-400 flex items-center justify-center font-bold text-xs text-slate-950">N</div>
+        <div>
+          <h4 class="text-xs font-bold text-cyan-400">NEX Co-Pilot</h4>
+          <p class="text-[9px] text-slate-400">Technical Advisor & Vision</p>
+        </div>
+      </div>
+      <button onclick="toggleNexModal()" class="text-slate-400 hover:text-white p-1 cursor-pointer">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- NEX Chat Stream -->
+    <div id="nexChatStream" class="flex-1 p-3.5 overflow-y-auto custom-scroll space-y-3 text-xs">
+      <!-- Initial Dynamic Welcome Greeting -->
+      <div id="nexInitialGreeting" class="flex items-start gap-2">
+        <div class="w-5 h-5 rounded-full bg-cyan-500 flex items-center justify-center text-[10px] font-bold text-slate-950 shrink-0">N</div>
+        <div class="bg-[#141926] border border-[#1c2333] p-2.5 rounded-xl max-w-[85%] text-slate-200">
+          Hello, how can I help you?
+        </div>
+      </div>
+    </div>
+
+    <!-- Attached Image Indicator -->
+    <div id="attachedImageBar" class="hidden px-3 py-1 bg-[#06080d] border-t border-[#1c2333] flex items-center justify-between text-[11px] shrink-0">
+      <span id="attachedFileName" class="text-cyan-400 truncate max-w-[240px]">image.png</span>
+      <button onclick="clearAttachedImage()" class="text-red-400 hover:text-red-300">Remove</button>
+    </div>
+
+    <!-- NEX Input Bar -->
+    <div class="p-2.5 bg-[#0d111a] border-t border-[#1c2333] shrink-0">
+      <form class="flex items-center gap-1.5" onsubmit="event.preventDefault(); sendNexMessage();">
+        <input type="file" id="nexFilePicker" accept="image/*" class="hidden" onchange="handleImageAttach(event)">
+        <button type="button" onclick="document.getElementById('nexFilePicker').click()" class="p-2 text-slate-400 hover:text-cyan-400 transition" title="Attach screenshot">
+          <i data-lucide="image" class="w-4 h-4"></i>
+        </button>
+        <input id="nexInput" type="text" placeholder="Ask questions or request prompts..." class="flex-1 bg-[#06080d] border border-[#1c2333] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-cyan-500">
+        <button type="submit" class="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
+          Ask
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SECRETS & KEYS DRAWER / MODAL (Emergent Inspired with 1-Click Copy) -->
+  <div id="vaultModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-[#0d111a] border border-[#1c2333] rounded-2xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#1c2333] pb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-5 h-5 text-cyan-400"></i>
+          <h3 class="text-sm font-semibold text-slate-100">Project Secrets & Endpoint Resources</h3>
+        </div>
+        <button onclick="toggleVaultModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <p class="text-xs text-slate-400 leading-relaxed">
+        Autonomous runtime variables and connection credentials for your running application. Click to copy directly.
+      </p>
+
+      <div class="space-y-2.5 text-xs font-mono">
+        <!-- Item 1: App ID -->
+        <div class="p-2.5 rounded-xl bg-[#06080d] border border-[#1c2333] flex items-center justify-between">
+          <div>
+            <span class="text-[10px] text-slate-500 block uppercase">Project ID</span>
+            <span class="text-slate-200">zyn_core_9882a170x</span>
+          </div>
+          <button onclick="copyToClipboard('zyn_core_9882a170x', this)" class="bg-[#141926] hover:bg-cyan-950 text-cyan-400 px-2.5 py-1 rounded border border-cyan-500/30 text-[11px] transition">
+            Copy
+          </button>
+        </div>
+
+        <!-- Item 2: Backend API URL -->
+        <div class="p-2.5 rounded-xl bg-[#06080d] border border-[#1c2333] flex items-center justify-between">
+          <div>
+            <span class="text-[10px] text-slate-500 block uppercase">Dedicated Backend Node</span>
+            <span class="text-slate-200 truncate max-w-[240px] block">https://zyntarix-core.onrender.com/api</span>
+          </div>
+          <button onclick="copyToClipboard('https://zyntarix-core.onrender.com/api', this)" class="bg-[#141926] hover:bg-cyan-950 text-cyan-400 px-2.5 py-1 rounded border border-cyan-500/30 text-[11px] transition">
+            Copy
+          </button>
+        </div>
+
+        <!-- Item 3: Managed Database Secret -->
+        <div class="p-2.5 rounded-xl bg-[#06080d] border border-[#1c2333] flex items-center justify-between">
+          <div>
+            <span class="text-[10px] text-slate-500 block uppercase">Managed Storage Secret</span>
+            <span class="text-slate-200">sk_live_managed_vault_secure</span>
+          </div>
+          <button onclick="copyToClipboard('sk_live_managed_vault_secure', this)" class="bg-[#141926] hover:bg-cyan-950 text-cyan-400 px-2.5 py-1 rounded border border-cyan-500/30 text-[11px] transition">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-[#1c2333] flex justify-end">
+        <button onclick="toggleVaultModal()" class="text-xs bg-[#141926] text-slate-300 hover:text-white px-3.5 py-1.5 rounded-lg border border-[#1c2333] transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE & ACCOUNT MODAL -->
+  <div id="profileModal" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="w-full max-w-md bg-[#0d111a] border border-[#1c2333] rounded-2xl p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-[#1c2333] pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-cyan-500 to-lime-400 flex items-center justify-center font-bold text-slate-950">Z</div>
+          <div>
+            <h3 class="text-sm font-semibold text-slate-200">Zyntarix Master Account</h3>
+            <p class="text-[11px] text-slate-500">Autonomous Dedicated Studio</p>
+          </div>
+        </div>
+        <button onclick="toggleProfileModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 font-mono">
+        <div class="p-3 rounded-xl bg-[#06080d] border border-[#1c2333]">
+          <span class="text-[10px] uppercase text-slate-500">Available Credits</span>
+          <div id="modalCreditsCount" class="text-lg font-bold text-lime-400 mt-0.5">1,250</div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#06080d] border border-[#1c2333]">
+          <span class="text-[10px] uppercase text-slate-500">Node Status</span>
+          <div class="text-lg font-bold text-cyan-400 mt-0.5">Active 🟢</div>
+        </div>
+      </div>
+
+      <div class="pt-2 border-t border-[#1c2333] flex justify-end">
+        <button onclick="toggleProfileModal()" class="text-xs bg-[#141926] text-slate-300 hover:text-white px-3.5 py-1.5 rounded-lg border border-[#1c2333] transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT MASTER ENGINE -->
+  <script>
+    lucide.createIcons();
+
+    let userCredits = 1250;
+    let currentAppSource = `<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#080b11;color:#94a3b8;font-family:sans-serif;"><div style="text-align:center;padding:24px;border:1px solid #1c2333;border-radius:12px;background:#0d111a;"><h3>⚡ Live Canvas Ready</h3><p>Instruct the Agent to build and launch your application.</p></div></body></html>`;
+    let attachedImageBase64 = null;
+    let hasChattedWithNex = false;
+
+    // Remove Initial 3D Z Loader when DOM ready
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const loader = document.getElementById('initialLoader');
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+      }, 700);
+    });
+
+    // Update Live Canvas
+    function updatePreviewCanvas(code) {
+      const frame = document.getElementById('liveFrame');
+      frame.srcdoc = code;
+    }
+    updatePreviewCanvas(currentAppSource);
+
+    function reloadPreviewCanvas() {
+      updatePreviewCanvas(currentAppSource);
+    }
+
+    function downloadAppSource() {
+      const blob = new Blob([currentAppSource], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'zyntarix_app.html';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Sidebar Toggle
+    function toggleSidebar() {
+      const sb = document.getElementById('sidebarPanel');
+      const backdrop = document.getElementById('sidebarBackdrop');
+      const isHidden = sb.classList.contains('-ml-64');
+      
+      if (isHidden) {
+        sb.classList.remove('-ml-64');
+        backdrop.classList.remove('hidden');
+      } else {
+        sb.classList.add('-ml-64');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    // Mobile View Switcher (Studio vs Preview)
+    function switchMobileView(view) {
+      const agentCol = document.getElementById('agentColumn');
+      const previewCol = document.getElementById('previewColumn');
+      const btnAgent = document.getElementById('mobileTabAgent');
+      const btnPreview = document.getElementById('mobileTabPreview');
+
+      if (view === 'preview') {
+        agentCol.classList.add('hidden');
+        previewCol.classList.remove('hidden');
+        previewCol.classList.add('flex');
+        btnPreview.className = 'px-2.5 py-1 rounded bg-cyan-600 text-white font-semibold transition';
+        btnAgent.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-white transition';
+      } else {
+        previewCol.classList.add('hidden');
+        previewCol.classList.remove('flex');
+        agentCol.classList.remove('hidden');
+        btnAgent.className = 'px-2.5 py-1 rounded bg-cyan-600 text-white font-semibold transition';
+        btnPreview.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-white transition';
+      }
+    }
+
+    // Modal Toggles
+    function toggleNexModal() {
+      document.getElementById('nexModal').classList.toggle('hidden');
+    }
+    function toggleVaultModal() {
+      document.getElementById('vaultModal').classList.toggle('hidden');
+    }
+    function toggleProfileModal() {
+      document.getElementById('profileModal').classList.toggle('hidden');
+    }
+
+    // 1-Click Copy Utility
+    function copyToClipboard(text, btnElement) {
+      navigator.clipboard.writeText(text).then(() => {
+        const original = btnElement.textContent;
+        btnElement.textContent = 'Copied!';
+        btnElement.classList.add('text-lime-400');
+        setTimeout(() => {
+          btnElement.textContent = original;
+          btnElement.classList.remove('text-lime-400');
+        }, 2000);
+      });
+    }
+
+    // Image Upload Handling
+    function handleImageAttach(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        attachedImageBase64 = e.target.result;
+        document.getElementById('attachedFileName').textContent = file.name;
+        document.getElementById('attachedImageBar').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAttachedImage() {
+      attachedImageBase64 = null;
+      document.getElementById('nexFilePicker').value = '';
+      document.getElementById('attachedImageBar').classList.add('hidden');
+    }
+
+    // NEX Companion Engine
+    async function sendNexMessage() {
+      const input = document.getElementById('nexInput');
+      const text = input.value.trim();
+      if (!text && !attachedImageBase64) return;
+
+      // Automatically remove initial greeting on first message
+      if (!hasChattedWithNex) {
+        const initialBubble = document.getElementById('nexInitialGreeting');
+        if (initialBubble) initialBubble.remove();
+        hasChattedWithNex = true;
+      }
+
+      appendNexBubble('user', text, attachedImageBase64);
+      input.value = '';
+
+      try {
+        const res = await fetch('/api/nex-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            message: text, 
+            image: attachedImageBase64,
+            currentCredits: userCredits,
+            appState: 'Online'
+          })
+        });
+        const data = await res.json();
+        appendNexBubble('nex', data.reply, null, data.englishPrompt);
+      } catch (err) {
+        appendNexBubble('nex', 'Request received. Ready to assist you with further tasks or prompts.');
+      }
+      clearAttachedImage();
+    }
+
+    function appendNexBubble(sender, text, img = null, promptOut = null) {
+      const feed = document.getElementById('nexChatStream');
+      const bubble = document.createElement('div');
+      bubble.className = `flex items-start gap-2 ${sender === 'user' ? 'justify-end' : ''}`;
+
+      if (sender === 'user') {
+        bubble.innerHTML = `
+          <div class="bg-cyan-700/40 border border-cyan-500/30 p-2.5 rounded-xl max-w-[85%] text-slate-100">
+            ${img ? `<img src="${img}" class="w-40 rounded-lg mb-1.5 border border-cyan-500/20">` : ''}
+            <p>${text}</p>
+          </div>
+          <div class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center font-bold text-[10px] text-white shrink-0">U</div>
+        `;
+      } else {
+        bubble.innerHTML = `
+          <div class="w-5 h-5 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-[10px] text-slate-950 shrink-0">N</div>
+          <div class="bg-[#141926] border border-[#1c2333] p-2.5 rounded-xl max-w-[85%] text-slate-200 space-y-2">
+            <p class="leading-relaxed">${text}</p>
+            ${promptOut ? `
+              <div class="p-2.5 rounded-lg bg-[#06080d] border border-cyan-500/30 space-y-1.5">
+                <div class="flex items-center justify-between text-[10px] text-cyan-400 font-mono">
+                  <span>OPTIMIZED AGENT SPECIFICATION</span>
+                  <button onclick="transferToAgent('${encodeURIComponent(promptOut)}')" class="text-xs text-lime-400 hover:underline flex items-center gap-1 font-semibold">
+                    <i data-lucide="arrow-down-right" class="w-3.5 h-3.5"></i> Apply to Agent
+                  </button>
+                </div>
+                <p class="font-mono text-slate-300 text-[11px] select-all leading-snug">${promptOut}</p>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+      feed.appendChild(bubble);
+      feed.scrollTop = feed.scrollHeight;
+      lucide.createIcons();
+    }
+
+    window.transferToAgent = function(encoded) {
+      const prompt = decodeURIComponent(encoded);
+      document.getElementById('promptInput').value = prompt;
+      toggleNexModal();
+      document.getElementById('promptInput').focus();
+    };
+
+    // Agent Build Pipeline
+    async function startBuildPipeline() {
+      const input = document.getElementById('promptInput');
+      const prompt = input.value.trim();
+      if (!prompt) return;
+
+      const feed = document.getElementById('agentFeed');
+      const pulse = document.getElementById('agentPulse');
+      const phase = document.getElementById('agentPhaseText');
+      const banner = document.getElementById('deployBanner');
+
+      banner.classList.add('hidden');
+      pulse.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-ping';
+      phase.textContent = 'Orchestrating...';
+
+      // Deduct Credits Dynamically
+      if (userCredits >= 15) {
+        userCredits -= 15;
+        document.getElementById('headerCreditsCount').textContent = userCredits.toLocaleString();
+        document.getElementById('modalCreditsCount').textContent = userCredits.toLocaleString();
+      }
+
+      // Append Instruction Card
+      const userCard = document.createElement('div');
+      userCard.className = 'p-3 rounded-xl bg-[#141926] border border-[#1c2333] text-slate-200';
+      userCard.innerHTML = `<span class="text-[10px] uppercase font-mono text-slate-500 block mb-1">Instruction Received</span><p class="font-medium">${prompt}</p>`;
+      feed.appendChild(userCard);
+
+      try {
+        const response = await fetch('/api/build', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const payload = JSON.parse(line.replace('data: ', ''));
+
+              if (payload.status === 'Complete' && payload.code) {
+                currentAppSource = payload.code;
+                updatePreviewCanvas(payload.code);
+                pulse.className = 'w-2 h-2 rounded-full bg-emerald-400';
+                phase.textContent = 'Build Complete';
+                banner.classList.remove('hidden');
+              } else {
+                appendFeedLog(payload.agent, payload.status, payload.detail);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        appendFeedLog('System', 'Notice', err.message, 'text-red-400');
+        pulse.className = 'w-2 h-2 rounded-full bg-red-400';
+        phase.textContent = 'Ready';
+      }
+    }
+
+    function appendFeedLog(agent, status, detail, textColor = 'text-slate-300') {
+      const feed = document.getElementById('agentFeed');
+      const item = document.createElement('div');
+      item.className = 'p-3 rounded-xl bg-[#0d111a] border border-[#1c2333] space-y-1';
+      item.innerHTML = `
+        <div class="flex items-center justify-between text-[10px] font-mono">
+          <span class="text-lime-400 font-bold">${agent}</span>
+          <span class="text-slate-500">${status}</span>
+        </div>
+        <p class="${textColor} text-[11px] leading-relaxed whitespace-pre-wrap">${detail}</p>
+      `;
+      feed.appendChild(item);
+      feed.scrollTop = feed.scrollHeight;
+    }
+  </script>
+</body>
+</html>
