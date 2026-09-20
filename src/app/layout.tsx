@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Zyntarix",
-  description: "AI Software Factory — Idea, Build, Verify, Ship.",
+  title: "Zyntarix | AI Software Factory",
+  description: "Idea to Verified App",
 };
 
 export default function RootLayout({
@@ -13,7 +13,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="bg-canvas antialiased">{children}</body>
     </html>
   );
 }
+
