@@ -1,10 +1,20 @@
-import { successResponse } from "@/server/response";
+import { db } from "@/server/db";
+import { successResponse, errorResponse } from "@/server/response";
 
 export async function GET() {
-  return successResponse({
-    service: "zyntarix-api",
-    status: "ok",
-    environment: process.env.NODE_ENV ?? "development",
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    await db.$queryRaw`SELECT 1`;
+
+    return successResponse({
+      service: "zyntarix-api",
+      status: "ok",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    return errorResponse(
+      "Database connection is unavailable.",
+      503
+    );
+  }
 }
