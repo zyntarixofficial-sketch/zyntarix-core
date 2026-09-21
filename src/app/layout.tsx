@@ -19,12 +19,23 @@ export default function RootLayout({
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
       </head>
-      <body className="min-h-screen bg-slate-900 text-slate-900 antialiased selection:bg-indigo-500 selection:text-white relative">
-        {/* High-Tech Stratosphere Sky Background */}
+      <body className="min-h-screen bg-[#0d3b66] text-slate-900 antialiased relative selection:bg-indigo-500 selection:text-white">
+        {/* Cyber Azure Stratosphere Canvas */}
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-b from-[#2b7fff] via-[#8ec5fc] to-[#f0f7ff]" />
-          {/* Subtle Cyber Light Rays */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-white/25 blur-3xl rounded-full" />
+          {/* Cobalt to Soft Azure Gradient Base */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#175296] via-[#3a86d8] to-[#90c4f8]" />
+          
+          {/* Top Horizon Glow Ray */}
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[900px] h-[350px] bg-white/35 blur-3xl rounded-full" />
+
+          {/* Micro-Dot Matrix Tech Grid */}
+          <div 
+            className="absolute inset-0 opacity-20"
+            style={{
+              backgroundImage: "radial-gradient(#ffffff 1px, transparent 1px)",
+              backgroundSize: "24px 24px"
+            }}
+          />
         </div>
         {children}
       </body>
