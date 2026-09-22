@@ -1,3 +1,4 @@
+
 {
   "name": "zyntarix-core",
   "version": "1.0.0",
@@ -13,6 +14,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.16.0",
+    "firebase": "^10.12.0",
+    "firebase-admin": "^12.1.0",
     "lucide-react": "^0.468.0",
     "next": "16.1.0",
     "prisma": "^6.16.0",
