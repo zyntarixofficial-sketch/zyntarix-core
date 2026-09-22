@@ -1,5 +1,13 @@
-import type { Metadata } from "next";
+
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1.0,
+  maximumScale: 1.0,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   title: "Zyntarix | Autonomous AI Software Factory",
@@ -13,20 +21,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full">
-      <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-        />
-      </head>
-      <body className="min-h-screen bg-[#0d3b66] text-slate-900 antialiased relative selection:bg-indigo-500 selection:text-white">
+      <body className="min-h-screen bg-[#0d3b66] text-slate-900 antialiased relative selection:bg-indigo-500 selection:text-white overflow-x-hidden">
         {/* Cyber Azure Stratosphere Canvas */}
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
           {/* Cobalt to Soft Azure Gradient Base */}
           <div className="absolute inset-0 bg-gradient-to-b from-[#175296] via-[#3a86d8] to-[#90c4f8]" />
           
           {/* Top Horizon Glow Ray */}
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[900px] h-[350px] bg-white/35 blur-3xl rounded-full" />
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-full max-w-[900px] h-[350px] bg-white/35 blur-3xl rounded-full" />
 
           {/* Micro-Dot Matrix Tech Grid */}
           <div 
@@ -42,4 +44,3 @@ export default function RootLayout({
     </html>
   );
 }
-
