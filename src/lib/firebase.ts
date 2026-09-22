@@ -5,12 +5,13 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDummyKeyForPrerenderOnly000",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "zyntarix.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "zyntarix",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "zyntarix.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:123456789:web:abcdef",
+  apiKey: "AIzaSyCqhxk3nagz21ar8M3V0cg7Er0rHH88AXc",
+  authDomain: "zyntarix--core.firebaseapp.com",
+  projectId: "zyntarix--core",
+  storageBucket: "zyntarix--core.firebasestorage.app",
+  messagingSenderId: "401646215438",
+  appId: "1:401646215438:web:11f0d10c4229518f71375f",
+  measurementId: "G-FYBYPJGVS0"
 };
 
 // Initialize Firebase App
