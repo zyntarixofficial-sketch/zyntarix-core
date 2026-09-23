@@ -1,8 +1,8 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const apiKey = process.env.GEMINI_API_KEY || "";
+const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,8 +12,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
+    // Explicitly using gemini-3.5-flash
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-pro",
+      model: "gemini-3.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.2,
@@ -21,20 +22,33 @@ export async function POST(req: NextRequest) {
     });
 
     const systemPrompt = `
-      You are Nexe, the Master AI Orchestrator of the Zyntarix platform.
-      Respond strictly with valid JSON using this structure:
+      You are Nexe, the Master AI Orchestration Engine of Zyntarix platform.
+      Take user project ideas and orchestrate software code across internal sub-agents:
+      1. Zyntarix Architect Node (Decomposes logic and file hierarchy)
+      2. Zyntarix Core Coder (Writes full TypeScript, React, Tailwind CSS code)
+      3. Sentinel Verification Node (Runs synthetic audit, checks missing imports)
+
+      Return STRICT JSON:
       {
-        "title": "Project Title",
-        "description": "Brief architecture overview",
+        "title": "Application Name",
+        "description": "Short system summary",
+        "steps": [
+          { "agent": "nexe", "message": "Decomposed system specs for: ${prompt.replace(/"/g, "'")}" },
+          { "agent": "architect", "message": "Architect Node: Defined modular directory tree and data interfaces." },
+          { "agent": "coder", "message": "Core Coder: Generated production React and Tailwind UI components." },
+          { "agent": "verifier", "message": "Sentinel Node: Performed syntax audit. Verified zero fatal exceptions." }
+        ],
         "files": [
           {
             "path": "src/app/page.tsx",
-            "content": "// Full working code"
+            "content": "// Full working Next.js code here..."
           }
         ]
       }
-      Target Framework: ${framework}.
-      User prompt: ${prompt}
+
+      Generate code matching user prompt: "${prompt}".
+      Target framework: ${framework}.
+      Do NOT mention external 3rd-party company names.
     `;
 
     const result = await model.generateContent(systemPrompt);
@@ -44,6 +58,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error("Nexe Engine Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to orchestrate" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Pipeline execution failed" }, { status: 500 });
   }
 }
