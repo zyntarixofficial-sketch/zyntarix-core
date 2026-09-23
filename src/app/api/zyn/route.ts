@@ -1,14 +1,14 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// Using only the most stable and available model identifiers
+// Exclusively use 1.5 models which support systemInstruction
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash-latest",
   "gemini-1.5-flash",
-  "gemini-pro"
+  "gemini-1.5-pro"
 ];
 
 export async function POST(req: NextRequest) {
@@ -52,7 +52,6 @@ export async function POST(req: NextRequest) {
       realErrorMsg = "GEMINI_API_KEY is missing in Render Environment.";
     }
 
-    // Pure English Fallback without any hardcoded Bengali
     if (!reply) {
       reply = `Zyntarix Backend Alert ⚠️\nAll fallback nodes failed. The upstream API reported:\n\n"${realErrorMsg}"\n\nPlease wait a moment for the cluster to stabilize and try again.`;
     }
