@@ -1,1 +1,215 @@
+"use client";
+
+import React, { useState, useEffect, useRef } from "react";
+import { MessageSquare, X, Paperclip, Send } from "lucide-react";
+
+interface Message {
+  sender: "user" | "zyn";
+  text: string;
+}
+
+export function ZynBot({ userCredits = 0 }: { userCredits?: number }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      sender: "zyn",
+      text: "Hey there! I am Zyn, the architectural co-pilot of Zyntarix. How can I help you shape your application today?",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Background queue for silent retries
+  const [pendingPayload, setPendingPayload] = useState<{
+    message: string;
+    image: string | null;
+  } | null>(null);
+  const retryInterval = useRef<NodeJS.Timeout | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSendMessage = async (textToSend: string, imageToSend: string | null = null) => {
+    if (!textToSend.trim() && !imageToSend) return;
+
+    // Append to UI immediately if this is an original user send
+    if (!pendingPayload) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "user",
+          text: textToSend || "[Attached screenshot for diagnosis]",
+        },
+      ]);
+    }
+
+    const payload = {
+      message: textToSend,
+      image: imageToSend,
+      credits: userCredits,
+    };
+
+    setInput("");
+    setSelectedImage(null);
+
+    try {
+      const res = await fetch("/api/zyn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reply) {
+          setMessages((prev) => [...prev, { sender: "zyn", text: data.reply }]);
+          setIsActive(true);
+          setPendingPayload(null);
+          if (retryInterval.current) clearInterval(retryInterval.current);
+        }
+      } else {
+        // Node busy: fail silently without exposing errors to user
+        setIsActive(false);
+        setPendingPayload({ message: textToSend, image: imageToSend });
+      }
+    } catch {
+      // Network interruption: fail silently
+      setIsActive(false);
+      setPendingPayload({ message: textToSend, image: imageToSend });
+    }
+  };
+
+  // Background silent auto-retry loop
+  useEffect(() => {
+    if (pendingPayload) {
+      retryInterval.current = setInterval(() => {
+        handleSendMessage(pendingPayload.message, pendingPayload.image);
+      }, 5000);
+    }
+
+    return () => {
+      if (retryInterval.current) clearInterval(retryInterval.current);
+    };
+  }, [pendingPayload]);
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+      {isOpen && (
+        <div className="mb-3 w-[360px] max-w-[92vw] h-[480px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+          {/* Header */}
+          <div className="px-4 py-3 bg-white border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-900 text-sm">Zyn (Zyntarix)</span>
+              {isActive ? (
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[11px] text-emerald-600 font-medium">Active</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-gray-300" />
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="text-gray-400 hover:text-gray-600 transition"
+              aria-label="Close Chat"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Chat Messages */}
+          <div className="p-4 flex-1 overflow-y-auto space-y-3 bg-slate-50/50">
+            {messages.map((m, idx) => (
+              <div
+                key={idx}
+                className={`flex ${m.sender === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[82%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+                    m.sender === "user"
+                      ? "bg-indigo-600 text-white rounded-br-none"
+                      : "bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-none"
+                  }`}
+                >
+                  {m.text}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Selected Image Preview Pill */}
+          {selectedImage && (
+            <div className="px-3 py-1.5 bg-gray-100 border-t border-gray-200 flex items-center justify-between text-xs text-gray-600">
+              <span className="truncate">Image selected for diagnosis</span>
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="text-red-500 hover:text-red-700 font-bold ml-2"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Input & Action Bar */}
+          <div className="p-3 bg-white border-t border-gray-100 flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageSelect}
+              accept="image/*"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition"
+              title="Attach screenshot"
+            >
+              <Paperclip size={18} />
+            </button>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSendMessage(input, selectedImage)}
+              placeholder="Talk to Zyn or ask questions..."
+              className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-full px-4 py-2 outline-none focus:border-indigo-500"
+            />
+            <button
+              onClick={() => handleSendMessage(input, selectedImage)}
+              className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full transition shadow-sm"
+              aria-label="Send"
+            >
+              <Send size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bottom-Right Trigger Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="h-12 w-12 rounded-full bg-black text-white shadow-xl hover:scale-105 active:scale-95 transition flex items-center justify-center font-bold text-xs"
+        aria-label="Toggle Zyn"
+      >
+        {isOpen ? <X size={20} /> : <MessageSquare size={20} />}
+      </button>
+    </div>
+  );
+}
+
+export default ZynBot;
 
