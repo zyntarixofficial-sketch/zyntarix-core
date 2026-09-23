@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,48 +12,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const systemInstruction = `
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-pro",
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const systemPrompt = `
       You are Nexe, the Master AI Orchestrator of the Zyntarix platform.
-      Your task is to act as Chief Architect:
-      1. Analyze the user prompt.
-      2. Plan the complete project architecture.
-      3. Generate production-ready, clean TypeScript/React/Tailwind CSS code.
-      
       Respond strictly with valid JSON using this structure:
       {
         "title": "Project Title",
         "description": "Brief architecture overview",
         "files": [
           {
-            "path": "path/to/file.tsx",
+            "path": "src/app/page.tsx",
             "content": "// Full working code"
           }
-        ],
-        "logs": [
-          "Architect Agent: Analyzed requirements",
-          "Coder Agent: Generated components",
-          "Verifier Agent: Code syntax verified"
         ]
       }
+      Target Framework: ${framework}.
+      User prompt: ${prompt}
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-pro",
-      contents: [
-        { role: "user", parts: [{ text: `Create an application for: ${prompt}. Framework: ${framework}` }] }
-      ],
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        temperature: 0.2,
-      },
-    });
+    const result = await model.generateContent(systemPrompt);
+    const text = result.response.text();
+    const data = JSON.parse(text || "{}");
 
-    const result = JSON.parse(response.text || "{}");
-    return NextResponse.json({ success: true, data: result });
+    return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error("Nexe Engine Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to orchestrate project" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Failed to orchestrate" }, { status: 500 });
   }
 }
-
