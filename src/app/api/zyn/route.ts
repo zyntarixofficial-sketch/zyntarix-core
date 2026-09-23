@@ -15,17 +15,18 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json({
-        reply: "System notice: GEMINI_API_KEY is not configured in Render environment.",
+        reply: "System notice: GEMINI_API_KEY is missing in Render.",
       });
     }
 
+    // Explicitly using gemini-3.5-flash
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
+      model: "gemini-3.5-flash",
       systemInstruction: `
         You are Zyn, the native architectural and planning co-pilot inside Zyntarix.
         Respond naturally and intelligently in the EXACT language used by the user.
         If the user writes in English, reply in English.
-        If the user writes in Bengali (Bangla/Banglish), reply in natural Bengali.
+        If the user writes in Bengali (Bangla/Banglish), reply in Bengali.
         Keep replies conversational, concise, and helpful for designing web and mobile apps.
         Never disclose or mention third-party AI brands or foundation model names.
       `,
