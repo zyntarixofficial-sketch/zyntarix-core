@@ -1,9 +1,4 @@
-
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const apiKey = process.env.GEMINI_API_KEY?.trim() || "";
-const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,29 +8,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
+    const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json({ error: "API Configuration missing" }, { status: 500 });
     }
 
-    // Using Google AI SDK with stable gemini-2.5-flash
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2,
-      },
-    });
-
-    const systemPrompt = `
-You are Nexa, the Master Deterministic Orchestration Engine of Zyntarix.
-Synthesize complete, runnable, production-ready source code for an application matching user requirements.
-
-RULES:
-1. NO PLACEHOLDERS: Write complete Next.js React component with Tailwind CSS.
-2. Return ONLY JSON conforming strictly to:
+    const systemPrompt = `You are Nexa, the Master Deterministic Orchestration Engine of Zyntarix.
+Synthesize a complete, full-page, beautiful Next.js application in TypeScript with React and Tailwind CSS.
+Never return placeholders or incomplete components.
+Return ONLY valid JSON matching this schema:
 {
-  "title": "Application Name",
-  "description": "System summary",
+  "title": "Application Title",
+  "description": "Short system summary",
   "steps": [
     { "agent": "nexa", "message": "Dispatched system specifications for build queue." },
     { "agent": "architect", "message": "Architect Node: Defined schema and component hierarchy." },
@@ -45,22 +29,61 @@ RULES:
   "files": [
     {
       "path": "src/app/page.tsx",
-      "content": "// Full working Next.js component..."
+      "content": "// Full Next.js React component here"
     }
   ]
-}
+}`;
 
-User Prompt: "${prompt}"
-Framework: ${framework}
-    `;
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text: `${systemPrompt}\n\nBuild an application for: "${prompt}". Framework: ${framework}`,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.2,
+          },
+        }),
+      }
+    );
 
-    const result = await model.generateContent(systemPrompt);
-    const responseText = result.response.text();
-    const data = JSON.parse(responseText || "{}");
+    const json = await res.json();
 
+    if (!res.ok) {
+      console.error("Gemini API Error:", json);
+      return NextResponse.json(
+        { error: json.error?.message || "Failed to call Gemini model" },
+        { status: res.status }
+      );
+    }
+
+    const rawOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawOutput) {
+      return NextResponse.json({ error: "No response from model" }, { status: 500 });
+    }
+
+    let cleaned = rawOutput.trim();
+    if (cleaned.startsWith("```json")) {
+      cleaned = cleaned.replace(/^```json/, "").replace(/```$/, "").trim();
+    } else if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/^```/, "").replace(/```$/, "").trim();
+    }
+
+    const data = JSON.parse(cleaned);
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
-    console.error("Nexa Direct Error:", error);
+    console.error("Nexa Route Exception:", error);
     return NextResponse.json(
       { error: error.message || "Failed to generate application source" },
       { status: 500 }
