@@ -1,5 +1,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const apiKey = process.env.GEMINI_API_KEY?.trim() || "";
+const genAI = new GoogleGenerativeAI(apiKey);
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,25 +13,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json({ error: "API Configuration missing" }, { status: 500 });
     }
 
-    const systemInstruction = `
-You are Nexa, the Master Deterministic Orchestration Engine of Zyntarix platform.
-You convert software architecture blueprints into complete, verified, production-ready code.
+    // Using Google AI SDK with stable gemini-2.5-flash
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const systemPrompt = `
+You are Nexa, the Master Deterministic Orchestration Engine of Zyntarix.
+Synthesize complete, runnable, production-ready source code for an application matching user requirements.
 
 RULES:
-1. ZERO INCOMPLETE CODE: Never output placeholders or half-finished files. Write fully functional TypeScript, React, and Tailwind CSS code.
-2. Return ONLY clean JSON without markdown code blocks, matching:
+1. NO PLACEHOLDERS: Write complete Next.js React component with Tailwind CSS.
+2. Return ONLY JSON conforming strictly to:
 {
   "title": "Application Name",
-  "description": "Short system summary",
-  "creditsUsed": 5,
+  "description": "System summary",
   "steps": [
     { "agent": "nexa", "message": "Dispatched system specifications for build queue." },
-    { "agent": "architect", "message": "Architect Node: Defined state machines and layout hierarchy." },
+    { "agent": "architect", "message": "Architect Node: Defined schema and component hierarchy." },
     { "agent": "coder", "message": "Core Coder: Generated deterministic React and Tailwind production code." },
     { "agent": "verifier", "message": "Sentinel Node: Verified AST trees, zero syntax errors." }
   ],
@@ -38,49 +49,20 @@ RULES:
     }
   ]
 }
-`.trim();
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: systemInstruction }],
-          },
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: `Generate full application code for: "${prompt}". Framework: ${framework}` }],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2,
-          },
-        }),
-      }
-    );
+User Prompt: "${prompt}"
+Framework: ${framework}
+    `;
 
-    const data = await response.json();
+    const result = await model.generateContent(systemPrompt);
+    const responseText = result.response.text();
+    const data = JSON.parse(responseText || "{}");
 
-    if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      let rawText = data.candidates[0].content.parts[0].text.trim();
-      if (rawText.startsWith("```json")) {
-        rawText = rawText.replace(/^```json/, "").replace(/```$/, "").trim();
-      } else if (rawText.startsWith("```")) {
-        rawText = rawText.replace(/^```/, "").replace(/```$/, "").trim();
-      }
-
-      const parsedData = JSON.parse(rawText);
-      return NextResponse.json({ success: true, data: parsedData });
-    }
-
-    return NextResponse.json({ error: "Nexa node temporarily busy" }, { status: 503 });
+    return NextResponse.json({ success: true, data });
   } catch (error: any) {
+    console.error("Nexa Direct Error:", error);
     return NextResponse.json(
-      { error: error.message || "Pipeline execution failed" },
+      { error: error.message || "Failed to generate application source" },
       { status: 500 }
     );
   }
