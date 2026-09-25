@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt = `You are Nexa, the Master Deterministic Orchestration Engine of Zyntarix.
-Synthesize a complete, full-page, beautiful Next.js application in TypeScript with React and Tailwind CSS.
+Synthesize a complete, full-page, beautiful Next.js application in TypeScript with React and Tailwind CSS matching the user request.
 Never return placeholders or incomplete components.
 Return ONLY valid JSON matching this schema:
 {
@@ -34,43 +35,62 @@ Return ONLY valid JSON matching this schema:
   ]
 }`;
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
+    // Available free models on Google AI
+    const models = ["gemini-3.6-flash", "gemini-3.5-flash-lite"];
+    let rawOutput = "";
+    let lastErrorMessage = "";
+
+    // Retry loop with delay for handling Google's High Demand spike
+    for (const model of models) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
             {
-              role: "user",
-              parts: [
-                {
-                  text: `${systemPrompt}\n\nBuild an application for: "${prompt}". Framework: ${framework}`,
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    role: "user",
+                    parts: [
+                      {
+                        text: `${systemPrompt}\n\nBuild an application for: "${prompt}". Framework: ${framework}`,
+                      },
+                    ],
+                  },
+                ],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  temperature: 0.2,
                 },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.2,
-          },
-        }),
+              }),
+            }
+          );
+
+          const json = await res.json();
+
+          if (res.ok && json.candidates?.[0]?.content?.parts?.[0]?.text) {
+            rawOutput = json.candidates[0].content.parts[0].text;
+            break; // Success! Exit loop
+          } else {
+            lastErrorMessage = json.error?.message || "Model high demand";
+            // Wait 1.5 seconds before retrying the spike
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+          }
+        } catch (e: any) {
+          lastErrorMessage = e.message;
+        }
       }
-    );
 
-    const json = await res.json();
-
-    if (!res.ok) {
-      console.error("Gemini API Error:", json);
-      return NextResponse.json(
-        { error: json.error?.message || "Failed to call Gemini model" },
-        { status: res.status }
-      );
+      if (rawOutput) break;
     }
 
-    const rawOutput = json.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawOutput) {
-      return NextResponse.json({ error: "No response from model" }, { status: 500 });
+      return NextResponse.json(
+        { error: `Google Node busy: ${lastErrorMessage}. Auto-retry scheduled.` },
+        { status: 503 }
+      );
     }
 
     let cleaned = rawOutput.trim();
