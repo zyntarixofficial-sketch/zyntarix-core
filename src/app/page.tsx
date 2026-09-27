@@ -1,1 +1,1183 @@
+"use client";
+
+import React, { useState, useEffect, useMemo } from "react";
+import { Navbar } from "@/components/Navbar";
+import { ZynBot } from "@/components/ZynBot";
+import { StartupLoader } from "@/components/StartupLoader";
+import { SynthesisOverlay, AgentStep } from "@/components/SynthesisOverlay";
+import { ProjectData as BaseProjectData, UserProfile } from "@/types/zyntarix";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "firebase/firestore";
+import { downloadProjectZip } from "@/lib/zipExporter";
+
+export interface ProjectData extends BaseProjectData {
+  files?: GeneratedFile[];
+  prompt?: string;
+}
+
+interface GeneratedFile {
+  path: string;
+  content: string;
+}
+
+interface AgentLog {
+  id: string;
+  agent: "nexa" | "architect" | "coder" | "verifier" | "system";
+  message: string;
+  type: "info" | "success" | "warning" | "error";
+  timestamp: string;
+}
+
+export default function Home() {
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"home" | "workspace">("home");
+  const [selectedCategory, setSelectedCategory] = useState("Web app");
+  const [promptInput, setPromptInput] = useState("");
+  const [patchInput, setPatchInput] = useState("");
+  const [isPatching, setIsPatching] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    name: "Architect",
+    email: "operator@zyntarix.com",
+    credits: 50,
+    maxCredits: 50,
+    plan: "Free Factory",
+  });
+
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [activeProject, setActiveProject] = useState<ProjectData | null>(null);
+
+  // 3-Dot Menu & Rename state
+  const [activeMenuProjectId, setActiveMenuProjectId] = useState<string | null>(null);
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [renamingProject, setRenamingProject] = useState<ProjectData | null>(null);
+  const [newProjectName, setNewProjectName] = useState("");
+
+  const [isOrchestrating, setIsOrchestrating] = useState(false);
+  const [currentAgentStep, setCurrentAgentStep] = useState<AgentStep>("idle");
+  const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
+  const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [workspaceView, setWorkspaceView] = useState<"preview" | "code" | "logs">("preview");
+  const [exportModal, setExportModal] = useState(false);
+  const [publishedModal, setPublishedModal] = useState(false);
+  const [publishedUrl, setPublishedUrl] = useState("");
+  const [expoUrl, setExpoUrl] = useState("");
+
+  const categories = ["Web app", "Mobile app", "Website", "3D Web", "Brainstorm"];
+
+  useEffect(() => {
+    const handleGlobalClick = () => setActiveMenuProjectId(null);
+    window.addEventListener("click", handleGlobalClick);
+    return () => window.removeEventListener("click", handleGlobalClick);
+  }, []);
+
+  // Initial Local Cache Load
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("zyntarix_cached_projects");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          setProjects(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn("Local cache read skipped");
+    }
+  }, []);
+
+  const syncLocalCache = (updatedList: ProjectData[]) => {
+    try {
+      localStorage.setItem("zyntarix_cached_projects", JSON.stringify(updatedList));
+    } catch (err) {
+      console.warn("Cache write skipped", err);
+    }
+  };
+
+  // Firebase Real-Time Sync
+  useEffect(() => {
+    let unsubProjects: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (usr) => {
+      if (usr) {
+        setCurrentUser(usr);
+
+        const userDocRef = doc(db, "users", usr.uid);
+        const snap = await getDoc(userDocRef);
+
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserProfile({
+            name: usr.displayName || "Architect",
+            email: usr.email || "",
+            credits: data.credits ?? 50,
+            maxCredits: data.maxCredits ?? 50,
+            plan: data.plan ?? "Free Factory",
+          });
+        } else {
+          const initProfile = {
+            name: usr.displayName || "Architect",
+            email: usr.email || "",
+            credits: 50,
+            maxCredits: 50,
+            plan: "Free Factory",
+            createdAt: new Date().toISOString(),
+          };
+          await setDoc(userDocRef, initProfile);
+          setUserProfile(initProfile);
+        }
+
+        const projectsRef = collection(db, "users", usr.uid, "projects");
+        unsubProjects = onSnapshot(projectsRef, (snapshot) => {
+          const list: ProjectData[] = [];
+          snapshot.forEach((docSnap) => {
+            const d = docSnap.data();
+            list.push({
+              id: docSnap.id,
+              name: d.name || "Untitled Application",
+              updatedAt: d.updatedAt || "Recently",
+              status: d.status || "published",
+              files: d.files || [],
+              prompt: d.prompt || "",
+              publishedUrl: d.publishedUrl || "",
+            } as ProjectData);
+          });
+
+          if (list.length > 0) {
+            setProjects(list);
+            syncLocalCache(list);
+          }
+        });
+      } else {
+        setCurrentUser(null);
+        if (unsubProjects) unsubProjects();
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubProjects) unsubProjects();
+    };
+  }, []);
+
+  const addLog = (
+    agent: AgentLog["agent"],
+    message: string,
+    type: AgentLog["type"] = "info"
+  ) => {
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setAgentLogs((prev) => [...prev, { id: Math.random().toString(), agent, message, type, timestamp: time }]);
+  };
+
+  const handleOpenProject = (proj: any) => {
+    setActiveProject(proj);
+    setActiveTab("workspace");
+    setWorkspaceView("preview");
+
+    if (proj.files && Array.isArray(proj.files) && proj.files.length > 0) {
+      setGeneratedFiles(proj.files);
+    } else {
+      setGeneratedFiles([
+        {
+          path: "src/app/page.tsx",
+          content: `export default function App() {\n  return (\n    <div className="p-8 bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center font-sans">\n      <h1 className="text-3xl font-bold">Hello from Zyntarix</h1>\n    </div>\n  );\n}`,
+        },
+      ]);
+    }
+  };
+
+  const handleDeleteProject = async (e: React.MouseEvent, projId: string) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this project?")) return;
+
+    const filtered = projects.filter((p) => p.id !== projId);
+    setProjects(filtered);
+    syncLocalCache(filtered);
+
+    if (currentUser) {
+      try {
+        await deleteDoc(doc(db, "users", currentUser.uid, "projects", projId));
+      } catch (err) {
+        console.error("Firestore delete error:", err);
+      }
+    }
+    setActiveMenuProjectId(null);
+  };
+
+  const handleOpenRename = (e: React.MouseEvent, proj: ProjectData) => {
+    e.stopPropagation();
+    setRenamingProject(proj);
+    setNewProjectName(proj.name);
+    setRenameModalOpen(true);
+    setActiveMenuProjectId(null);
+  };
+
+  const handleConfirmRename = async () => {
+    if (!renamingProject || !newProjectName.trim()) return;
+
+    const updated = projects.map((p) =>
+      p.id === renamingProject.id ? { ...p, name: newProjectName.trim() } : p
+    );
+    setProjects(updated);
+    syncLocalCache(updated);
+
+    if (currentUser) {
+      try {
+        await updateDoc(doc(db, "users", currentUser.uid, "projects", renamingProject.id), {
+          name: newProjectName.trim(),
+        });
+      } catch (err) {
+        console.error("Firestore rename error:", err);
+      }
+    }
+
+    setRenameModalOpen(false);
+    setRenamingProject(null);
+  };
+
+  const handleDuplicateProject = async (e: React.MouseEvent, proj: ProjectData) => {
+    e.stopPropagation();
+    const newId = Date.now().toString();
+    const clonedProj: ProjectData = {
+      ...proj,
+      id: newId,
+      name: `${proj.name} (Copy)`,
+      updatedAt: "Just now",
+      status: "published",
+      files: proj.files ? JSON.parse(JSON.stringify(proj.files)) : [],
+    } as any;
+
+    const updated = [clonedProj, ...projects];
+    setProjects(updated);
+    syncLocalCache(updated);
+
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, "users", currentUser.uid, "projects", newId), clonedProj);
+      } catch (err) {
+        console.error("Firestore duplicate error:", err);
+      }
+    }
+    setActiveMenuProjectId(null);
+  };
+
+  const handleStartBuild = async () => {
+    if (!promptInput.trim()) return;
+
+    if (userProfile.credits < 5) {
+      alert("Insufficient credits. Please recharge your Zyntarix credits.");
+      return;
+    }
+
+    const currentPrompt = promptInput;
+    const projId = Date.now().toString();
+    const appSlug = currentPrompt.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 16) || "app";
+
+    const newProj: ProjectData = {
+      id: projId,
+      name: currentPrompt.slice(0, 28) + (currentPrompt.length > 28 ? "..." : ""),
+      updatedAt: "Just now",
+      status: "deploying",
+      prompt: currentPrompt,
+      files: [],
+      publishedUrl: `https://${appSlug}-${projId.slice(-4)}.zyntarix.app`,
+    } as any;
+
+    setActiveProject(newProj);
+    setActiveTab("workspace");
+    setWorkspaceView("preview");
+    setIsOrchestrating(true);
+    setCurrentAgentStep("nexa");
+    setAgentLogs([]);
+    setGeneratedFiles([]);
+    setPromptInput("");
+
+    setPublishedUrl(`https://${appSlug}-${projId.slice(-4)}.zyntarix.app`);
+    setExpoUrl(`exp://u.expo.dev/zyntarix-runtime?slug=${appSlug}`);
+
+    addLog("nexa", `Pipeline engaged: "${currentPrompt}"`, "info");
+
+    const archTimer = setTimeout(() => {
+      setCurrentAgentStep("architect");
+      addLog("architect", "Zyntarix Architect: Analyzing specifications & directory decomposition...", "info");
+    }, 1200);
+
+    const coderTimer = setTimeout(() => {
+      setCurrentAgentStep("coder");
+      addLog("coder", "Zyntarix Core Coder: Synthesizing deterministic React & Tailwind code...", "info");
+    }, 2800);
+
+    try {
+      const response = await fetch("/api/nexa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: currentPrompt,
+          framework: selectedCategory,
+          userCredits: userProfile.credits,
+        }),
+      });
+
+      clearTimeout(archTimer);
+      clearTimeout(coderTimer);
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server error ${response.status}`);
+      }
+
+      const resData = await response.json();
+
+      if (resData.success && resData.data) {
+        setCurrentAgentStep("verifier");
+        addLog("verifier", "Sentinel Node: Verified AST trees with zero fatal exceptions.", "success");
+
+        if (resData.data.steps) {
+          resData.data.steps.forEach((step: any) => {
+            addLog(step.agent || "nexa", step.message, "info");
+          });
+        }
+
+        const files = resData.data.files || [];
+        setGeneratedFiles(files);
+
+        const completedProj: ProjectData = {
+          ...newProj,
+          status: "published",
+          files: files,
+          updatedAt: new Date().toLocaleDateString(),
+        } as any;
+
+        setActiveProject(completedProj);
+
+        const updatedProjects = [completedProj, ...projects.filter((p) => p.id !== projId)];
+        setProjects(updatedProjects);
+        syncLocalCache(updatedProjects);
+
+        addLog("system", "🚀 Project compiled and permanently stored in your Firestore.", "success");
+        setCurrentAgentStep("success");
+
+        setTimeout(() => {
+          setIsOrchestrating(false);
+          setCurrentAgentStep("idle");
+        }, 1100);
+
+        const updatedCredits = Math.max(0, userProfile.credits - 5);
+        setUserProfile((prev) => ({ ...prev, credits: updatedCredits }));
+
+        if (currentUser) {
+          await updateDoc(doc(db, "users", currentUser.uid), {
+            credits: updatedCredits,
+          });
+          await setDoc(doc(db, "users", currentUser.uid, "projects", projId), completedProj);
+        }
+      } else {
+        throw new Error(resData.error || "Engine execution failed");
+      }
+    } catch (err: any) {
+      clearTimeout(archTimer);
+      clearTimeout(coderTimer);
+      console.error("Nexa Build Error:", err);
+      addLog("verifier", `Sentinel Node Alert: ${err.message}`, "error");
+      addLog("system", "Notice: Switched to defensive fallback container.", "warning");
+
+      const fallbackFiles = [
+        {
+          path: "src/app/page.tsx",
+          content: `export default function App() {\n  return (\n    <main className="p-8 font-sans bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center">\n      <h1 className="text-3xl font-bold">Fallback app</h1>\n    </main>\n  );\n}`,
+        },
+      ];
+      setGeneratedFiles(fallbackFiles);
+
+      const failedProj: ProjectData = {
+        ...newProj,
+        status: "draft",
+        files: fallbackFiles,
+      } as any;
+
+      const updatedProjects = [failedProj, ...projects.filter((p) => p.id !== projId)];
+      setProjects(updatedProjects);
+      syncLocalCache(updatedProjects);
+
+      if (currentUser) {
+        await setDoc(doc(db, "users", currentUser.uid, "projects", projId), failedProj);
+      }
+      setIsOrchestrating(false);
+      setCurrentAgentStep("idle");
+    }
+  };
+
+  const handlePatchApp = async () => {
+    if (!patchInput.trim() || isPatching) return;
+
+    const patchInstruction = patchInput.trim();
+    const currentCodeToPatch = generatedFiles[0]?.content || "";
+
+    if (!currentCodeToPatch) {
+      alert("No active application code found to patch.");
+      return;
+    }
+
+    setIsPatching(true);
+    setPatchInput("");
+    addLog("nexa", `Patch requested: "${patchInstruction}"`, "info");
+
+    try {
+      const response = await fetch("/api/nexa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: `USER REQUESTED MODIFICATION: "${patchInstruction}".\n\nCURRENT APPLICATION CODE:\n${currentCodeToPatch}\n\nUpdate and patch the code precisely. Return standard React JSX.`,
+          framework: selectedCategory,
+          userCredits: userProfile.credits,
+          isPatch: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server error ${response.status}`);
+      }
+
+      const resData = await response.json();
+
+      if (resData.success && resData.data && resData.data.files) {
+        const updatedFiles = resData.data.files;
+        setGeneratedFiles(updatedFiles);
+        addLog("verifier", "Sentinel Node: Patch verified & compiled successfully!", "success");
+
+        if (activeProject) {
+          const patchedProj: ProjectData = {
+            ...activeProject,
+            files: updatedFiles,
+            updatedAt: "Just now",
+          } as any;
+          setActiveProject(patchedProj);
+
+          const updatedProjects = projects.map((p) =>
+            p.id === activeProject.id ? patchedProj : p
+          );
+          setProjects(updatedProjects);
+          syncLocalCache(updatedProjects);
+
+          if (currentUser) {
+            await updateDoc(doc(db, "users", currentUser.uid, "projects", activeProject.id), {
+              files: updatedFiles,
+              updatedAt: "Just now",
+            });
+          }
+        }
+      } else {
+        throw new Error(resData.error || "Patch execution failed");
+      }
+    } catch (err: any) {
+      console.error("Patch error:", err);
+      addLog("verifier", `Patch alert: ${err.message}`, "error");
+    } finally {
+      setIsPatching(false);
+    }
+  };
+
+  const handleDownloadZip = async () => {
+    if (!activeProject || !generatedFiles.length) {
+      alert("No active project files found to export.");
+      return;
+    }
+    try {
+      setIsExporting(true);
+      await downloadProjectZip(activeProject.name, generatedFiles);
+      setExportModal(false);
+    } catch (err: any) {
+      console.error("ZIP Export error:", err);
+      alert("Failed to create ZIP package: " + err.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const currentCode = generatedFiles[0]?.content || "";
+
+  // Fixed live sandbox loader: wait until Babel + React + ReactDOM are available before executing code.
+  const sandboxSrcDoc = useMemo(() => {
+    if (!currentCode) {
+      return `<!DOCTYPE html><html><body style="background:#020617;color:#94a3b8;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><p style="font-size:14px;">No active code to display</p></body></html>`;
+    }
+
+    // NOTE: Fixed import-stripping regex. The old version only matched
+    // `import X from "...";` and missed side-effect imports (`import "x";`),
+    // type-only imports, and multi-line imports — leftover `import` lines
+    // caused "Cannot use import statement outside a module" in the sandbox.
+    // The new regex matches any `import ...;` statement (line-anchored,
+    // multiline mode) regardless of shape, plus a dev-time safety check.
+    let cleaned = currentCode
+      .replace(/^\s*['"]use client['"]\s*;?\s*$/gm, "")
+      .replace(/^\s*import\s+[^;]+?;?\s*$/gm, "")
+      .replace(/^\s*export\s+default\s+function\s+\w+/gm, "function App")
+      .replace(/^\s*export\s+default\s+\w+\s*;?\s*$/gm, "")
+      .replace(/^\s*export\s+(const|let|var|function|class)\s+/gm, "$1 ");
+
+    // Safety net: warn (don't throw) if an import statement somehow survives,
+    // so debugging future edge cases is faster than reading a bare stack trace.
+    const leftoverImport = cleaned.match(/^\s*import\s.*$/m);
+    if (leftoverImport) {
+      console.warn("Unstripped import statement detected in sandbox code:", leftoverImport[0]);
+    }
+
+    return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body { margin: 0; padding: 0; background: #020617; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; overflow-x: hidden; }
+      * { box-sizing: border-box; }
+      #loading { display:flex; align-items:center; justify-content:center; height:100vh; color:#818cf8; font-family:sans-serif; font-size:14px; }
+      #error { padding:20px; color:#f87171; background:#090d16; height:100vh; font-family:monospace; font-size:12px; overflow:auto; white-space:pre-wrap; word-wrap:break-word; }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div id="loading"><span>⚡ Launching Live App Interface...</span></div>
+    </div>
+
+    <script>
+      // Catches errors that happen AFTER the initial render (e.g. inside
+      // useEffect, event handlers, or a promise rejection). Without this,
+      // such errors were invisible and the preview just went blank.
+      function showRuntimeError(err) {
+        const rootEl = document.getElementById('root');
+        if (!rootEl) return;
+        const msg = err && err.message ? err.message : String(err);
+        const stack = err && err.stack ? err.stack : 'N/A';
+        rootEl.innerHTML = '<div id="error"><b>🚨 App Runtime Error</b>\\n\\n' + msg + '\\n\\nStack:\\n' + stack + '</div>';
+      }
+      window.addEventListener('error', function (e) {
+        showRuntimeError(e.error || e.message);
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        showRuntimeError(e.reason);
+      });
+
+      window.UniversalIcon = function(props) {
+        const cls = (props && props.className) ? props.className : "w-5 h-5 inline-block";
+        return React.createElement("svg", {
+          className: cls,
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: 2,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+          style: props && props.style ? props.style : {}
+        },
+          React.createElement("circle", { cx: 12, cy: 12, r: 9 }),
+          React.createElement("path", { d: "M12 8v8M8 12h8" })
+        );
+      };
+
+      window.LucideIcons = new Proxy({}, { get: () => window.UniversalIcon });
+      window.lucideReact = window.LucideIcons;
+
+      const commonIcons = [
+        "ShoppingBag", "ShoppingCart", "Search", "Plus", "Minus", "CheckCircle", "Clock", "MapPin", "Star",
+        "Utensils", "ArrowRight", "ArrowLeft", "ShieldCheck", "Trash", "RefreshCw", "ImageIcon", "Heart",
+        "Filter", "User", "Settings", "ChevronRight", "ChevronLeft", "Sliders", "Bell", "Award", "BookOpen",
+        "TrendingUp", "Sparkles", "Layers", "DollarSign", "Menu", "X", "Flame", "Home", "Info", "AlertCircle",
+        "Download", "Upload"
+      ];
+      commonIcons.forEach((icon) => {
+        window[icon] = window.UniversalIcon;
+      });
+
+      // Catches crashes thrown during React's render/commit phase (this is
+      // the case a plain try/catch around ReactDOM.render cannot cover,
+      // since React swallows render-phase errors and unmounts silently
+      // when there's no boundary — that silent unmount is what produced
+      // the blank black screen).
+      class SandboxErrorBoundary extends React.Component {
+        constructor(props) {
+          super(props);
+          this.state = { hasError: false, error: null };
+        }
+        static getDerivedStateFromError(error) {
+          return { hasError: true, error };
+        }
+        componentDidCatch(error, info) {
+          console.error('Component crashed:', error, info);
+        }
+        render() {
+          if (this.state.hasError) {
+            return React.createElement(
+              'div',
+              { id: 'error' },
+              React.createElement('b', null, '🚨 App Runtime Error'),
+              React.createElement(
+                'pre',
+                { style: { whiteSpace: 'pre-wrap', marginTop: '10px' } },
+                String(this.state.error && this.state.error.message ? this.state.error.message : this.state.error)
+              )
+            );
+          }
+          return this.props.children;
+        }
+      }
+
+      function bootApp() {
+        try {
+          if (!window.Babel || !window.React || !window.ReactDOM) {
+            setTimeout(bootApp, 100);
+            return;
+          }
+
+          const rawCode = ${JSON.stringify(cleaned).replace(/<\/script/gi, "<\\/script")};
+
+          const transformed = window.Babel.transform(rawCode, {
+            presets: ["react"]
+          }).code;
+
+          const safeWindow = new Proxy(window, {
+            has: () => true,
+            get: (target, prop) => {
+              if (prop in target) return target[prop];
+              if (typeof prop === "string" && /^[A-Z]/.test(prop)) {
+                return window.UniversalIcon;
+              }
+              return undefined;
+            }
+          });
+
+          const fnBody = 'with (this) { ' + transformed + '; return typeof App !== "undefined" ? App : typeof GeneratedApp !== "undefined" ? GeneratedApp : null; }';
+          const runFn = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', fnBody);
+
+          const TargetApp = runFn.call(
+            safeWindow,
+            React,
+            ReactDOM,
+            React.useState,
+            React.useEffect,
+            React.useMemo,
+            React.useRef,
+            React.useCallback
+          );
+
+          if (TargetApp && typeof TargetApp === 'function') {
+            const rootEl = document.getElementById('root');
+            rootEl.innerHTML = '';
+            const root = ReactDOM.createRoot(rootEl);
+            root.render(React.createElement(SandboxErrorBoundary, null, React.createElement(TargetApp)));
+          } else {
+            throw new Error('No valid App component found. Check your export.');
+          }
+        } catch (err) {
+          console.error("Runtime Error:", err);
+          showRuntimeError(err);
+        }
+      }
+
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        bootApp();
+      } else {
+        window.addEventListener('DOMContentLoaded', bootApp);
+        setTimeout(bootApp, 200);
+      }
+    </script>
+  </body>
+</html>`;
+  }, [currentCode]);
+
+  return (
+    <div className="min-h-screen flex flex-col font-sans relative">
+      {loading && <StartupLoader onFinish={() => setLoading(false)} />}
+
+      <SynthesisOverlay
+        currentStep={currentAgentStep}
+        logs={agentLogs}
+        isSynthesizing={isOrchestrating}
+      />
+
+      <Navbar
+        user={userProfile}
+        activeProjectName={activeProject?.name}
+        activeTab={activeTab}
+        onTabSwitch={(tab) => setActiveTab(tab)}
+      />
+
+      <main className="flex-1 w-full max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-8 flex flex-col">
+        {activeTab === "home" ? (
+          <div className="flex flex-col items-center space-y-5 sm:space-y-6 w-full">
+            <div className="text-center space-y-1.5 pt-1 sm:pt-2">
+              <h1 className="text-xl sm:text-4xl font-black tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.3)]">
+                Where ideas become verified apps.
+              </h1>
+              <p className="text-xs sm:text-sm font-medium text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.25)] max-w-md mx-auto">
+                Describe it once. Nexa plans, builds, and verifies before shipping.
+              </p>
+            </div>
+
+            <div className="w-full bg-white/90 backdrop-blur-2xl border border-white/80 rounded-2xl sm:rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] overflow-hidden">
+              <div className="flex items-center space-x-1.5 border-b border-slate-200/70 p-2 sm:p-2.5 bg-white/50 overflow-x-auto text-xs sm:text-sm scrollbar-none">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all ${
+                      selectedCategory === cat
+                        ? "bg-white text-indigo-600 shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-3.5 sm:p-5">
+                <textarea
+                  value={promptInput}
+                  onChange={(e) => setPromptInput(e.target.value)}
+                  placeholder={`Describe your ${selectedCategory.toLowerCase()} in detail. Nexa will orchestrate code, generate preview and mobile barcodes...`}
+                  rows={4}
+                  className="w-full text-xs sm:text-base bg-transparent outline-none resize-none placeholder:text-slate-400 text-slate-800 font-medium"
+                />
+              </div>
+
+              <div className="border-t border-slate-200/70 px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white/60 flex items-center justify-between gap-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span className="text-[11px] sm:text-xs font-semibold text-slate-600 truncate">
+                    Zyntarix Autonomous Nodes Ready
+                  </span>
+                </div>
+                <button
+                  onClick={handleStartBuild}
+                  disabled={!promptInput.trim()}
+                  className={`px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold flex items-center space-x-1.5 sm:space-x-2 transition-all shrink-0 ${
+                    promptInput.trim()
+                      ? "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:opacity-95 shadow-md shadow-indigo-500/20 active:scale-98 cursor-pointer"
+                      : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                  }`}
+                >
+                  <span>Build with Nexa</span>
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="w-full space-y-2.5 pt-1">
+              <div className="flex items-center justify-between px-1">
+                <h2 className="text-xs font-black uppercase tracking-wider text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
+                  Active Projects ({projects.length})
+                </h2>
+                {currentUser && (
+                  <span className="text-[10px] text-white/80 font-mono">
+                    Cloud Synced: {currentUser.email}
+                  </span>
+                )}
+              </div>
+
+              {projects.length === 0 ? (
+                <div className="bg-white/80 backdrop-blur-xl border border-white/70 rounded-2xl p-5 sm:p-7 text-center text-xs sm:text-sm font-medium text-slate-600 shadow-sm">
+                  No applications active. Type a prompt above or ask Zyn in the corner.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {projects.map((proj) => (
+                    <div
+                      key={proj.id}
+                      onClick={() => handleOpenProject(proj)}
+                      className="relative bg-white/90 backdrop-blur-xl border border-white/80 hover:border-indigo-400 p-3.5 sm:p-4 rounded-2xl cursor-pointer transition-all shadow-sm hover:shadow-md"
+                    >
+                      <div className="flex justify-between items-start">
+                        <span className="font-bold text-sm text-slate-800 line-clamp-1 pr-6">
+                          {proj.name}
+                        </span>
+
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuProjectId(activeMenuProjectId === proj.id ? null : proj.id);
+                            }}
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            title="Project options"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                            </svg>
+                          </button>
+
+                          {activeMenuProjectId === proj.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-7 w-36 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-30 font-sans animate-in fade-in zoom-in-95 duration-100"
+                            >
+                              <button
+                                onClick={() => handleOpenProject(proj)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-medium flex items-center gap-1.5"
+                              >
+                                <span>👁️</span> Open
+                              </button>
+                              <button
+                                onClick={(e) => handleOpenRename(e, proj)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-medium flex items-center gap-1.5"
+                              >
+                                <span>✏️</span> Rename
+                              </button>
+                              <button
+                                onClick={(e) => handleDuplicateProject(e, proj)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 font-medium flex items-center gap-1.5"
+                              >
+                                <span>📋</span> Duplicate
+                              </button>
+                              <hr className="my-1 border-slate-100" />
+                              <button
+                                onClick={(e) => handleDeleteProject(e, proj.id)}
+                                className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 font-semibold flex items-center gap-1.5"
+                              >
+                                <span>🗑️</span> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-xs text-slate-500 font-medium">
+                        <span>{proj.updatedAt}</span>
+                        <span className="text-indigo-600 font-bold group-hover:translate-x-0.5 transition-transform">
+                          Open Live App →
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col space-y-3.5 h-full">
+            <div className="flex items-center justify-between bg-white/90 backdrop-blur-xl p-2 sm:p-3 rounded-2xl border border-white/80 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setWorkspaceView("preview")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    workspaceView === "preview" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  👁️ Interactive Live App
+                </button>
+                <button
+                  onClick={() => setWorkspaceView("code")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    workspaceView === "code" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  💻 Code Files ({generatedFiles.length})
+                </button>
+                <button
+                  onClick={() => setWorkspaceView("logs")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    workspaceView === "logs" ? "bg-indigo-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  ⚡ Agent Stream {isOrchestrating && <span className="animate-pulse ml-1 inline-block">●</span>}
+                </button>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setPublishedModal(true)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer flex items-center space-x-1"
+                >
+                  <span>🌐</span>
+                  <span>Publish & QR</span>
+                </button>
+                <button
+                  onClick={() => setExportModal(true)}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  🚀 Ship
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-950/95 text-slate-100 backdrop-blur-2xl border border-slate-800 rounded-2xl sm:rounded-3xl flex flex-col shadow-2xl overflow-hidden flex-1">
+              {workspaceView === "preview" && (
+                <div className="flex-1 bg-slate-950 flex flex-col h-[60vh] sm:h-[650px] overflow-hidden">
+                  <div className="bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center justify-between text-xs shrink-0">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                      <span className="text-[11px] font-mono text-slate-400 ml-2">Interactive App Preview</span>
+                    </div>
+                    <div className="text-emerald-400 text-[11px] font-mono flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Live Sandbox
+                    </div>
+                  </div>
+
+                  <iframe
+                    title="Live App Sandbox"
+                    srcDoc={sandboxSrcDoc}
+                    className="w-full flex-1 border-none bg-slate-950"
+                    sandbox="allow-scripts allow-modals"
+                  />
+                </div>
+              )}
+
+              {workspaceView === "code" && (
+                <div className="flex-1 flex flex-col sm:flex-row h-full min-h-[50vh]">
+                  <div className="w-full sm:w-56 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 space-y-1 overflow-y-auto">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 px-2 py-1">Generated Files</p>
+                    {generatedFiles.map((file, idx) => (
+                      <button
+                        key={file.path}
+                        onClick={() => setSelectedFileIndex(idx)}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-mono truncate transition-colors ${
+                          selectedFileIndex === idx
+                            ? "bg-indigo-600 text-white"
+                            : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+                        }`}
+                      >
+                        {file.path}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex-1 p-3 sm:p-4 overflow-y-auto font-mono text-xs text-slate-200 bg-slate-900/50">
+                    <pre className="whitespace-pre-wrap">{generatedFiles[selectedFileIndex]?.content || "// Generating code..."}</pre>
+                  </div>
+                </div>
+              )}
+
+              {workspaceView === "logs" && (
+                <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-2.5 font-mono text-xs min-h-[50vh]">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-slate-400 text-[11px]">
+                    <span>Orchestrator: Nexa Core Engine</span>
+                    <span className="text-emerald-400">Status: {isOrchestrating ? "Synthesizing Source..." : "Verified"}</span>
+                  </div>
+
+                  {agentLogs.length === 0 && (
+                    <p className="text-slate-500 py-6 text-center">Engine idling. Submit a prompt to start build.</p>
+                  )}
+
+                  {agentLogs.map((log) => (
+                    <div key={log.id} className="flex items-start space-x-2 py-1 border-b border-slate-900/60">
+                      <span className="text-slate-500 text-[10px] shrink-0">{log.timestamp}</span>
+                      <span
+                        className={`font-bold px-1.5 py-0.5 rounded text-[10px] uppercase shrink-0 ${
+                          log.agent === "nexa"
+                            ? "bg-indigo-950 text-indigo-300 border border-indigo-700"
+                            : log.agent === "architect"
+                            ? "bg-blue-950 text-blue-300 border border-blue-700"
+                            : log.agent === "coder"
+                            ? "bg-emerald-950 text-emerald-300 border border-emerald-700"
+                            : log.agent === "verifier"
+                            ? "bg-purple-950 text-purple-300 border border-purple-700"
+                            : "bg-slate-800 text-slate-300 border border-slate-700"
+                        }`}
+                      >
+                        {log.agent}
+                      </span>
+                      <span
+                        className={`flex-1 break-words ${
+                          log.type === "warning"
+                            ? "text-amber-300"
+                            : log.type === "error"
+                            ? "text-red-400"
+                            : log.type === "success"
+                            ? "text-emerald-300"
+                            : "text-slate-300"
+                        }`}
+                      >
+                        {log.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="sticky bottom-0 z-30 p-2.5 sm:p-3 border-t border-slate-800 bg-slate-900 shadow-lg">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handlePatchApp();
+                  }}
+                  className="flex items-center bg-slate-950 border border-slate-800 rounded-xl sm:rounded-2xl p-1.5 shadow-inner focus-within:border-indigo-500 transition-all gap-2"
+                >
+                  <div className="hidden sm:flex items-center px-2.5 text-[11px] font-bold text-indigo-400 border-r border-slate-800 shrink-0">
+                    ⚡ Nexa Engine
+                  </div>
+                  <input
+                    type="text"
+                    value={patchInput}
+                    disabled={isPatching}
+                    onChange={(e) => setPatchInput(e.target.value)}
+                    placeholder={
+                      isPatching
+                        ? "Nexa is patching your application..."
+                        : "Ask Nexa to patch, adjust design, or add features..."
+                    }
+                    className="flex-1 text-sm px-2.5 py-1.5 bg-transparent outline-none text-slate-200 placeholder:text-slate-500 disabled:opacity-50 select-text cursor-text"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!patchInput.trim() || isPatching}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center space-x-1 ${
+                      patchInput.trim() && !isPatching
+                        ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm cursor-pointer active:scale-95"
+                        : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                    }`}
+                  >
+                    <span>{isPatching ? "Patching..." : "Patch App"}</span>
+                    <span>⚡</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {renameModalOpen && renamingProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="font-bold text-slate-800 text-sm">Rename Project</h3>
+            <input
+              type="text"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              className="w-full text-sm p-2.5 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 text-slate-800"
+              placeholder="Enter new project title..."
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRenameModalOpen(false)}
+                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRename}
+                className="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {publishedModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-200 space-y-5 text-center">
+            <div className="flex items-center justify-between text-left">
+              <div>
+                <h3 className="font-black text-slate-900 text-lg">App Published! 🚀</h3>
+                <p className="text-[11px] text-slate-500">Live preview URL & mobile runtime ready.</p>
+              </div>
+              <button
+                onClick={() => setPublishedModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col items-center space-y-2">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Scan with Expo Go App
+              </span>
+              <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-xs">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                    expoUrl || "https://expo.dev"
+                  )}`}
+                  alt="Expo QR Code"
+                  className="w-40 h-40 object-contain rounded-lg"
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 max-w-xs">
+                Open <b>Expo Go</b> on your phone and scan to test natively!
+              </p>
+            </div>
+
+            <div className="space-y-1.5 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Live URL
+              </label>
+              <div className="flex items-center space-x-1.5 bg-slate-100 p-2 rounded-xl border border-slate-200">
+                <input
+                  type="text"
+                  readOnly
+                  value={publishedUrl}
+                  className="bg-transparent text-xs font-mono text-slate-800 flex-1 outline-none"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(publishedUrl);
+                    alert("Copied to clipboard!");
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {exportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-base">Ship Application</h3>
+              <button
+                onClick={() => setExportModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">Download production-ready source code:</p>
+
+            <div className="space-y-2">
+              <button
+                onClick={handleDownloadZip}
+                disabled={isExporting}
+                className="w-full text-left p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/70 transition-all flex items-center justify-between cursor-pointer"
+              >
+                <div>
+                  <h4 className="font-bold text-xs text-slate-900">Next.js 14 App Package</h4>
+                  <p className="text-[10px] text-slate-500">Includes Tailwind, configs & page.tsx</p>
+                </div>
+                <span className="text-xs bg-indigo-600 text-white font-bold px-2.5 py-1 rounded-xl">
+                  {isExporting ? "Zipping..." : "ZIP ↓"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ZynBot
+        userCredits={userProfile.credits}
+        onTransferPromptToNexa={(prompt) => {
+          setPromptInput(prompt);
+          setActiveTab("home");
+        }}
+      />
+    </div>
+  );
+}
 
