@@ -184,7 +184,7 @@ export default function Home() {
       setGeneratedFiles([
         {
           path: "src/app/page.tsx",
-          content: `export default function App() {\n  return (\n    <div className="p-8 bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center font-sans">\n      <h1 className="text-2xl font-bold text-indigo-400">${proj.name}</h1>\n      <p className="mt-2 text-slate-400 text-sm">Application ready. Type below to continue building.</p>\n    </div>\n  );\n}`,
+          content: `export default function App() {\n  return (\n    <div className="p-8 bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center font-sans">\n      <h1 className="text-3xl font-bold">Hello from Zyntarix</h1>\n    </div>\n  );\n}`,
         },
       ]);
     }
@@ -388,7 +388,7 @@ export default function Home() {
       const fallbackFiles = [
         {
           path: "src/app/page.tsx",
-          content: `export default function App() {\n  return (\n    <main className="p-8 font-sans bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center">\n      <h1 className="text-3xl font-extrabold text-indigo-400">${newProj.name}</h1>\n      <p className="mt-3 text-slate-400 text-sm max-w-md text-center">Interactive dashboard initialized.</p>\n    </main>\n  );\n}`,
+          content: `export default function App() {\n  return (\n    <main className="p-8 font-sans bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center">\n      <h1 className="text-3xl font-bold">Fallback app</h1>\n    </main>\n  );\n}`,
         },
       ];
       setGeneratedFiles(fallbackFiles);
@@ -501,19 +501,18 @@ export default function Home() {
 
   const currentCode = generatedFiles[0]?.content || "";
 
-  // 100% BULLETPROOF SELF-HEALING ZERO-DELAY RUNTIME
+  // Fixed live sandbox loader: wait until Babel + React + ReactDOM are available before executing code.
   const sandboxSrcDoc = useMemo(() => {
     if (!currentCode) {
-      return `<!DOCTYPE html><html><body style="background:#020617;color:#94a3b8;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><p style="font-size:14px;letter-spacing:1px;">🚀 Waiting for synthesized application...</p></body></html>`;
+      return `<!DOCTYPE html><html><body style="background:#020617;color:#94a3b8;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><p style="font-size:14px;">No active code to display</p></body></html>`;
     }
 
-    // Comprehensive import and export removal
     let cleaned = currentCode
-      .replace(/['"]use client['"];?/g, "")
-      .replace(/import\s+[\s\S]*?['"][^'"]+['"];?/g, "")
-      .replace(/export\s+default\s+function\s+([A-Za-z0-9_]+)/g, "function App")
-      .replace(/export\s+default\s+[A-Za-z0-9_]+;?/g, "")
-      .replace(/export\s+(?:const|let|var|function|class|interface|type)\s+/g, (m) => m.replace("export ", ""));
+      .replace(/['"`]use client['"`];?\n?/g, "")
+      .replace(/import\s+(?:{[^}]*}|[^\s]+)\s+from\s+['"][^'"]+['"]\s*;?/g, "")
+      .replace(/export\s+default\s+function\s+\w+/g, "function App")
+      .replace(/export\s+default\s+\w+\s*;?/g, "")
+      .replace(/export\s+(const|let|var|function|class)\s+/g, "$1 ");
 
     return `<!DOCTYPE html>
 <html>
@@ -527,19 +526,18 @@ export default function Home() {
     <style>
       body { margin: 0; padding: 0; background: #020617; color: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; overflow-x: hidden; }
       * { box-sizing: border-box; }
+      #loading { display:flex; align-items:center; justify-content:center; height:100vh; color:#818cf8; font-family:sans-serif; font-size:14px; }
+      #error { padding:20px; color:#f87171; background:#090d16; height:100vh; font-family:monospace; font-size:12px; overflow:auto; white-space:pre-wrap; word-wrap:break-word; }
     </style>
   </head>
   <body>
     <div id="root">
-      <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#818cf8;font-family:sans-serif;font-size:14px;">
-        <span>⚡ Launching Live App Interface...</span>
-      </div>
+      <div id="loading"><span>⚡ Launching Live App Interface...</span></div>
     </div>
 
     <script>
-      // Universal Safe SVG Component for any missing/unknown icon
       window.UniversalIcon = function(props) {
-        var cls = (props && props.className) ? props.className : "w-5 h-5 inline-block";
+        const cls = (props && props.className) ? props.className : "w-5 h-5 inline-block";
         return React.createElement("svg", {
           className: cls,
           viewBox: "0 0 24 24",
@@ -548,61 +546,58 @@ export default function Home() {
           strokeWidth: 2,
           strokeLinecap: "round",
           strokeLinejoin: "round",
-          style: (props && props.style) ? props.style : {}
-        }, 
-        React.createElement("circle", { cx: 12, cy: 12, r: 9 }),
-        React.createElement("path", { d: "M12 8v8M8 12h8" })
+          style: props && props.style ? props.style : {}
+        },
+          React.createElement("circle", { cx: 12, cy: 12, r: 9 }),
+          React.createElement("path", { d: "M12 8v8M8 12h8" })
         );
       };
 
-      // Lucide safe proxy trap
-      window.LucideIcons = new Proxy({}, {
-        get: function() { return window.UniversalIcon; }
-      });
+      window.LucideIcons = new Proxy({}, { get: () => window.UniversalIcon });
       window.lucideReact = window.LucideIcons;
 
-      var commonIcons = [
-        "ShoppingBag", "ShoppingCart", "Search", "Plus", "Minus", "CheckCircle", "Clock", "MapPin", "Star", 
-        "Utensils", "ArrowRight", "ArrowLeft", "ShieldCheck", "Trash", "RefreshCw", "ImageIcon", "Heart", 
-        "Filter", "User", "Settings", "ChevronRight", "ChevronLeft", "Sliders", "Bell", 
-        "Award", "BookOpen", "TrendingUp", "Sparkles", "Layers", "DollarSign", "Menu", "X", "Flame"
+      const commonIcons = [
+        "ShoppingBag", "ShoppingCart", "Search", "Plus", "Minus", "CheckCircle", "Clock", "MapPin", "Star",
+        "Utensils", "ArrowRight", "ArrowLeft", "ShieldCheck", "Trash", "RefreshCw", "ImageIcon", "Heart",
+        "Filter", "User", "Settings", "ChevronRight", "ChevronLeft", "Sliders", "Bell", "Award", "BookOpen",
+        "TrendingUp", "Sparkles", "Layers", "DollarSign", "Menu", "X", "Flame", "Home", "Info", "AlertCircle",
+        "Download", "Upload"
       ];
-      commonIcons.forEach(function(icon) {
+      commonIcons.forEach((icon) => {
         window[icon] = window.UniversalIcon;
       });
 
-      // Synchronous Direct Bootstrapping
       function bootApp() {
         try {
-          var rawCode = ${JSON.stringify(cleaned)};
-          
-          if (!window.Babel) {
-            setTimeout(bootApp, 50);
+          if (!window.Babel || !window.React || !window.ReactDOM) {
+            setTimeout(bootApp, 100);
             return;
           }
 
-          var transformed = window.Babel.transform(rawCode, {
-            presets: ['react', 'typescript']
+          const rawCode = ${JSON.stringify(cleaned)};
+
+          const transformed = window.Babel.transform(rawCode, {
+            presets: ["react"]
           }).code;
 
-          var safeScope = new Proxy(window, {
-            has: function() { return true; },
-            get: function(target, prop) {
+          const safeWindow = new Proxy(window, {
+            has: () => true,
+            get: (target, prop) => {
               if (prop in target) return target[prop];
-              if (typeof prop === 'string' && /^[A-Z]/.test(prop)) {
+              if (typeof prop === "string" && /^[A-Z]/.test(prop)) {
                 return window.UniversalIcon;
               }
               return undefined;
             }
           });
 
-          var runFn = new Function('React', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', 
-            'with (this) { ' + transformed + '; return (typeof App !== "undefined" ? App : (typeof GeneratedApp !== "undefined" ? GeneratedApp : null)); }'
-          );
-          
-          var TargetApp = runFn.call(
-            safeScope,
+          const fnBody = 'with (this) { ' + transformed + '; return typeof App !== "undefined" ? App : typeof GeneratedApp !== "undefined" ? GeneratedApp : null; }';
+          const runFn = new Function('React', 'ReactDOM', 'useState', 'useEffect', 'useMemo', 'useRef', 'useCallback', fnBody);
+
+          const TargetApp = runFn.call(
+            safeWindow,
             React,
+            ReactDOM,
             React.useState,
             React.useEffect,
             React.useMemo,
@@ -610,26 +605,26 @@ export default function Home() {
             React.useCallback
           );
 
-          if (TargetApp) {
-            var rootEl = document.getElementById('root');
+          if (TargetApp && typeof TargetApp === 'function') {
+            const rootEl = document.getElementById('root');
             rootEl.innerHTML = '';
-            var root = ReactDOM.createRoot(rootEl);
+            const root = ReactDOM.createRoot(rootEl);
             root.render(React.createElement(TargetApp));
           } else {
-            document.getElementById('root').innerHTML = '<div style="padding:24px;color:#f87171;font-family:sans-serif;">Application entry point was not found.</div>';
+            throw new Error('No valid App component found. Check your export.');
           }
         } catch (err) {
-          console.error("Execution Error:", err);
-          document.getElementById('root').innerHTML = '<div style="padding:20px;color:#f87171;background:#090d16;height:100vh;font-family:monospace;font-size:12px;overflow:auto;"><b>Live Sandbox Notice:</b><br/>' + (err.stack || err.message) + '</div>';
+          console.error("Runtime Error:", err);
+          const errorDiv = document.getElementById("root");
+          errorDiv.innerHTML = '<div id="error"><b>🚨 App Runtime Error</b>\\n\\n' + String(err) + '\\n\\nStack:\\n' + (err.stack || 'N/A') + '</div>';
         }
       }
 
-      // Execute directly
       if (document.readyState === 'complete' || document.readyState === 'interactive') {
         bootApp();
       } else {
         window.addEventListener('DOMContentLoaded', bootApp);
-        setTimeout(bootApp, 150);
+        setTimeout(bootApp, 200);
       }
     </script>
   </body>
@@ -736,7 +731,7 @@ export default function Home() {
                     <div
                       key={proj.id}
                       onClick={() => handleOpenProject(proj)}
-                      className="relative bg-white/90 backdrop-blur-xl border border-white/80 hover:border-indigo-400 p-3.5 sm:p-4 rounded-2xl cursor-pointer transition-all shadow-sm hover:shadow-md space-y-2 group"
+                      className="relative bg-white/90 backdrop-blur-xl border border-white/80 hover:border-indigo-400 p-3.5 sm:p-4 rounded-2xl cursor-pointer transition-all shadow-sm hover:shadow-md"
                     >
                       <div className="flex justify-between items-start">
                         <span className="font-bold text-sm text-slate-800 line-clamp-1 pr-6">
@@ -852,8 +847,6 @@ export default function Home() {
             </div>
 
             <div className="bg-slate-950/95 text-slate-100 backdrop-blur-2xl border border-slate-800 rounded-2xl sm:rounded-3xl flex flex-col shadow-2xl overflow-hidden flex-1">
-              
-              {/* LIVE INTERACTIVE RUNTIME FRAME */}
               {workspaceView === "preview" && (
                 <div className="flex-1 bg-slate-950 flex flex-col h-[60vh] sm:h-[650px] overflow-hidden">
                   <div className="bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center justify-between text-xs shrink-0">
@@ -878,7 +871,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* CODE FILES VIEW */}
               {workspaceView === "code" && (
                 <div className="flex-1 flex flex-col sm:flex-row h-full min-h-[50vh]">
                   <div className="w-full sm:w-56 border-b sm:border-b-0 sm:border-r border-slate-800 p-2 space-y-1 overflow-y-auto">
@@ -904,7 +896,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* AGENT STREAM VIEW */}
               {workspaceView === "logs" && (
                 <div className="flex-1 p-3 sm:p-5 overflow-y-auto space-y-2.5 font-mono text-xs min-h-[50vh]">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-slate-400 text-[11px]">
@@ -952,7 +943,6 @@ export default function Home() {
                 </div>
               )}
 
-              {/* LIVE PATCH INPUT BAR */}
               <div className="sticky bottom-0 z-30 p-2.5 sm:p-3 border-t border-slate-800 bg-slate-900 shadow-lg">
                 <form
                   onSubmit={(e) => {
@@ -996,7 +986,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* Rename Modal */}
       {renameModalOpen && renamingProject && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
@@ -1026,7 +1015,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Publish & Expo Go QR Barcode Modal */}
       {publishedModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-200 space-y-5 text-center">
@@ -1087,7 +1075,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Ship & Download ZIP Modal */}
       {exportModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
@@ -1121,7 +1108,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Floating Zyn AI Assistant */}
       <ZynBot
         userCredits={userProfile.credits}
         onTransferPromptToNexa={(prompt) => {
@@ -1132,4 +1118,3 @@ export default function Home() {
     </div>
   );
 }
-
